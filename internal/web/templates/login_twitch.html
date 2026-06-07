@@ -1,0 +1,31 @@
+{{define "login_twitch.html"}}{{template "layout" .}}{{end}}
+
+{{define "title"}}Twitch login · GrubDrops{{end}}
+
+{{define "content"}}
+{{with .Page}}
+<div class="auth-wrap wide">
+  <div class="auth-card">
+    <div class="kicker">// twitch · device-code</div>
+    <h1>Authorize {{.DisplayName}}</h1>
+    <p class="intro">Open the URL in a browser logged into the throwaway Twitch account, enter the code, confirm.</p>
+    <div class="device-code">
+      <div class="label">user code</div>
+      <div class="code">{{.UserCode}}</div>
+      <a class="url" href="{{.VerificationURL}}" target="_blank" rel="noopener">→ {{.VerificationURL}}</a>
+    </div>
+    <div id="status"
+         hx-get="/accounts/{{.AccountID}}/login/poll"
+         hx-trigger="every 3s"
+         hx-swap="innerHTML"
+         style="text-align:center; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted); padding: 12px 0;">
+      <em>waiting for authorization…</em>
+    </div>
+    <div class="submit-row">
+      <a class="alt" href="/accounts">← cancel</a>
+      <span class="alt" style="color: var(--muted);">polling 3s</span>
+    </div>
+  </div>
+</div>
+{{end}}
+{{end}}

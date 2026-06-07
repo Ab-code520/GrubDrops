@@ -1,0 +1,71 @@
+{{define "drops.html"}}{{template "layout" .}}{{end}}
+
+{{define "title"}}Drops · GrubDrops{{end}}
+
+{{define "content"}}
+<div class="shell">
+  {{with .Page}}
+  <div class="ph">
+    <div>
+      <div class="kicker">// <a href="https://www.twitch.tv/drops/inventory" target="_blank" rel="noopener" class="kicker-link">Twitch Inventory</a> · <a href="https://kick.com/drops/all-campaigns" target="_blank" rel="noopener" class="kicker-link">Kick Inventory</a></div>
+      <h1>Drops</h1>
+    </div>
+    <div class="actions">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.14em;">filtered by whitelist</span>
+    </div>
+  </div>
+
+  <div class="drops-tabs" role="tablist">
+    <a role="tab"
+       class="drops-tab {{if eq .Tab "past"}}on{{end}}"
+       hx-get="/drops?tab=past"
+       hx-target="#drops-tabpanel"
+       hx-swap="outerHTML"
+       hx-push-url="true"
+       href="/drops?tab=past">
+      Past <span class="count">{{.PastCount}}</span>
+    </a>
+    <a role="tab"
+       class="drops-tab {{if eq .Tab "current"}}on{{end}}"
+       hx-get="/drops?tab=current"
+       hx-target="#drops-tabpanel"
+       hx-swap="outerHTML"
+       hx-push-url="true"
+       href="/drops?tab=current">
+      Current <span class="count">{{.CurrentCount}}</span>
+    </a>
+    {{if or (gt .UpcomingCount 0) (eq .Tab "upcoming")}}
+    <a role="tab"
+       class="drops-tab {{if eq .Tab "upcoming"}}on{{end}}"
+       hx-get="/drops?tab=upcoming"
+       hx-target="#drops-tabpanel"
+       hx-swap="outerHTML"
+       hx-push-url="true"
+       href="/drops?tab=upcoming">
+      Upcoming <span class="count">{{.UpcomingCount}}</span>
+    </a>
+    {{end}}
+  </div>
+
+  {{/* All three panes live inside the drops_table partial (#drops-tabpanel)
+       so a tab click re-renders Whitelisted + not-linked + Discoverable
+       together. */}}
+  {{template "drops_table" .}}
+  {{end}}
+</div>
+
+<script>
+(function() {
+  // HTMX only swaps the table; the tab strip stays static, so the
+  // .on class never moves. Toggle it client-side on click.
+  document.querySelectorAll('.drops-tabs .drops-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.drops-tabs .drops-tab').forEach(function(t) {
+        t.classList.remove('on');
+      });
+      tab.classList.add('on');
+    });
+  });
+})();
+</script>
+{{end}}

@@ -1,0 +1,108 @@
+package kick
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"testing"
+	"time"
+)
+
+// TestLiveDiscovery hits the REAL Kick public livestreams endpoint through the
+// production utls transport to prove the Chrome-fingerprint client bypasses
+// Cloudflare and the discovery parsing works. Gated by KICK_COOKIES (a JSON
+// array of {name,value}); skipped otherwise so CI stays offline.
+//
+//	KICK_COOKIES=/tmp/grubdrops-kick-cookies.json go test ./internal/platform/kick -run TestLiveDiscovery -v
+func TestLiveDiscovery(t *testing.T) {
+	path := os.Getenv("KICK_COOKIES")
+	if path == "" {
+		t.Skip("set KICK_COOKIES to a cookies json to run the live discovery test")
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read cookies: %v", err)
+	}
+	var flat []struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &flat); err != nil {
+		t.Fatalf("parse cookies: %v", err)
+	}
+	ks := kickSession{UserAgent: chromeUA}
+	for _, c := range flat {
+		ks.Cookies = append(ks.Cookies, cookie{Name: c.Name, Value: c.Value, Domain: ".kick.com", Path: "/"})
+		if c.Name == "XSRF-TOKEN" {
+			ks.XSRFToken = c.Value
+		}
+	}
+	sess, err := encodeSession(ks)
+	if err != nil {
+		t.Fatalf("encode session: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	chans, err := newAPI().DiscoverChannelsForCategory(ctx, sess, "rust")
+	if err != nil {
+		t.Fatalf("discover channels: %v", err)
+	}
+	t.Logf("discovered %d live rust channels via utls (CF bypassed)", len(chans))
+	if len(chans) == 0 {
+		t.Fatal("expected at least one live channel")
+	}
+	for i, c := range chans {
+		if i >= 5 {
+			break
+		}
+		t.Logf("  %s  viewers=%d livestreamID=%s", c.Channel, c.ViewerCount, c.ChannelID)
+	}
+}
+
+// TestLiveCampaigns hits the REAL authed drops campaigns endpoint through the
+// production api+transport, validating host (web.kick.com), Bearer auth, and the
+// campaign/reward parsing. Gated by KICK_COOKIES (fresh session).
+func TestLiveCampaigns(t *testing.T) {
+	path := os.Getenv("KICK_COOKIES")
+	if path == "" {
+		t.Skip("set KICK_COOKIES to a fresh cookies json to run")
+	}
+	raw, _ := os.ReadFile(path)
+	var flat []struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &flat); err != nil {
+		t.Fatalf("parse cookies: %v", err)
+	}
+	ks := kickSession{UserAgent: chromeUA}
+	for _, c := range flat {
+		ks.Cookies = append(ks.Cookies, cookie{Name: c.Name, Value: c.Value, Domain: ".kick.com", Path: "/"})
+		if c.Name == "XSRF-TOKEN" {
+			ks.XSRFToken = c.Value
+		}
+	}
+	s, _ := encodeSession(ks)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	camps, err := newAPI().Campaigns(ctx, s)
+	if err != nil {
+		t.Fatalf("Campaigns: %v", err)
+	}
+	t.Logf("parsed %d kick campaigns via authed utls", len(camps))
+	if len(camps) == 0 {
+		t.Fatal("expected >=1 campaign")
+	}
+	for i, c := range camps {
+		if i >= 6 {
+			break
+		}
+		t.Logf("  [%s] %q game=%q rewards=%d start=%s end=%s", c.Status, c.Name, c.Game, len(c.Rewards), c.StartsAt, c.EndsAt)
+		for _, r := range c.Rewards {
+			t.Logf("      reward %q req=%dmin", r.Name, r.RequiredMinutes)
+		}
+	}
+}

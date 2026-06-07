@@ -1,0 +1,157 @@
+{{define "drops_table"}}
+{{/* The whole tab panel — all three panes — lives inside #drops-tabpanel so
+     an HTMX tab swap re-renders Whitelisted + not-linked + Discoverable
+     together. (Previously only the Whitelisted pane swapped, leaving the
+     other two stale across past/current/upcoming.) */}}
+<div id="drops-tabpanel" class="drops-tabpanel" role="tabpanel">
+  <div class="drops-grid">
+
+    <section class="drops-pane">
+      <header class="drops-pane-h">
+        <h3>Whitelisted</h3>
+        <span class="meta">{{len .Rows}} · {{.Tab}}</span>
+      </header>
+      {{if not .Rows}}
+      <div class="empty">
+        {{if eq .Tab "past"}}
+          No past drops yet. Once a whitelisted campaign ends — or you claim a drop — it shows up here.
+        {{else if eq .Tab "current"}}
+          No in-flight whitelisted campaigns. Discovery populates this list each time a watcher polls.
+        {{else}}
+          No upcoming whitelisted campaigns announced yet.
+        {{end}}
+      </div>
+      {{else}}
+      <div class="events drops-rows">
+        {{range .Rows}}
+        <details class="ev kind-{{if eq .Kind "reward"}}auth{{else}}claim{{end}}{{if eq .Kind "reward"}} drop-dim{{end}}{{if .NeedsConnect}} ev-linkrow{{end}}"
+                 {{if .CampaignID}}hx-get="/drops/campaigns/{{.CampaignID}}/items"
+                 hx-target="find .ev-detail-slot"
+                 hx-trigger="toggle once from:closest details"
+                 hx-swap="innerHTML"{{end}}>
+          <summary>
+            <span class="chev" aria-hidden="true">›</span>
+            <span class="t">{{.When}}</span>
+            <span class="lvl" style="color:var(--{{if eq .Platform "twitch"}}purple{{else if eq .Platform "kick"}}kick{{else}}muted{{end}})">●</span>
+            <span class="body"><em style="color:var(--{{if eq .Platform "twitch"}}purple{{else if eq .Platform "kick"}}kick{{else}}muted{{end}})">{{.Platform}}</em>{{if eq .Kind "reward"}} · reward{{end}} · <span style="color:var(--muted);">{{.Game}}</span> · {{.CampaignName}}{{if .BenefitName}} · <strong>{{.BenefitName}}</strong>{{end}}</span>
+            <span class="ac collect{{if .NeedsConnect}} link-actions{{end}}">
+              {{/* connect nudge: accounts that whitelist this game but aren't linked — it's still mined by the linked ones */}}
+              {{range .ConnectChips}}{{if not .Linked}}<a class="conn-chip need" href="{{.LinkURL}}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="connect {{.Login}}">{{.Login}} →</a>{{end}}{{end}}
+              {{if eq $.Tab "upcoming"}}<span style="color:var(--dim)">—</span>{{else if .ActionOnly}}<span class="collect-box" title="only action-required drops — nothing to auto-collect"><span class="tk cross">✗</span></span>{{else if .Collectors}}<span class="collect-box">{{range .Collectors}}<span class="tk{{if not .Full}} partial{{end}}" title="{{if .Full}}{{.Login}} collected all watch-time drops{{else}}{{.Login}} partially collected{{end}}">✓</span>{{end}}</span>{{else}}<span style="color:var(--dim)">—</span>{{end}}</span>
+          </summary>
+          <div class="ev-detail-slot">
+            {{if not .CampaignID}}
+            <div class="ev-detail" style="color:var(--muted);font-size:11px;">No campaign id — claim-history row only.</div>
+            {{else}}
+            <div class="ev-detail" style="color:var(--muted);font-size:11px;">Loading items…</div>
+            {{end}}
+          </div>
+        </details>
+        {{end}}
+      </div>
+      {{end}}
+    </section>
+
+    {{if .UnlinkedRows}}
+    <section class="drops-pane">
+      <header class="drops-pane-h">
+        <h3>Whitelisted — account not linked</h3>
+        <span class="meta">{{len .UnlinkedRows}} · not mined</span>
+      </header>
+      <div class="events drops-rows">
+        {{$csrf := .CSRFToken}}
+        {{range .UnlinkedRows}}
+        <details class="ev kind-auth drop-dim ev-linkrow"
+                 {{if .CampaignID}}hx-get="/drops/campaigns/{{.CampaignID}}/items"
+                 hx-target="find .ev-detail-slot"
+                 hx-trigger="toggle once from:closest details"
+                 hx-swap="innerHTML"{{end}}>
+          <summary>
+            <span class="chev" aria-hidden="true">›</span>
+            <span class="t">{{if .When}}{{.When}}{{else}}—{{end}}</span>
+            <span class="lvl" style="color:var(--{{if eq .Platform "twitch"}}purple{{else if eq .Platform "kick"}}kick{{else}}muted{{end}})">●</span>
+            <span class="body"><em style="color:var(--{{if eq .Platform "twitch"}}purple{{else if eq .Platform "kick"}}kick{{else}}muted{{end}})">{{.Platform}}</em> · <span style="color:var(--muted);">{{.Game}}</span> · {{.CampaignName}}</span>
+            <span class="ac link-actions">
+              {{range .ConnectChips}}
+                {{if .Linked}}<span class="conn-chip ok" title="{{.Login}} connected">✓ {{.Login}}</span>{{else}}<a class="conn-chip need" href="{{.LinkURL}}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="connect {{.Login}}">{{.Login}} →</a>{{end}}
+              {{else}}
+                {{if .LinkURL}}<a href="{{.LinkURL}}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);">connect account →</a>{{else}}account not linked{{end}}
+              {{end}}
+              {{if .CampaignID}}
+              <form method="post" action="/drops/link" onclick="event.stopPropagation()" onsubmit="if(!confirm('Mark this campaign linked and reload watchers so the bot starts mining it?')){return false;} this.querySelector('button').disabled=true;">
+                <input type="hidden" name="csrf_token" value="{{$csrf}}">
+                <input type="hidden" name="campaign_id" value="{{.CampaignID}}">
+                <button class="btn sm linked-btn" type="submit" title="I've linked this account — mark it linked so the bot attempts to mine it.">✓</button>
+              </form>
+              {{end}}
+            </span>
+          </summary>
+          <div class="ev-detail-slot">
+            {{if .CampaignID}}
+            <div class="ev-detail" style="color:var(--muted);font-size:11px;">Loading items…</div>
+            {{else}}
+            <div class="ev-detail" style="color:var(--muted);font-size:11px;">No item details available for this campaign.</div>
+            {{end}}
+          </div>
+        </details>
+        {{end}}
+      </div>
+    </section>
+    {{end}}
+
+    <section class="drops-pane">
+      <header class="drops-pane-h">
+        <h3>Discoverable — not whitelisted</h3>
+        <span class="meta">{{len .UnlistedRows}}</span>
+      </header>
+      {{if not .UnlistedRows}}
+      <div class="empty">All discovered campaigns are on at least one whitelist.</div>
+      {{else}}
+      <div class="events drops-rows scroll-cap">
+        {{$accts := .Accounts}}
+        {{$csrf := .CSRFToken}}
+        {{range .UnlistedRows}}
+        <details class="ev kind-{{if eq .Kind "reward"}}auth{{else}}discovery{{end}} ev-linkrow"
+                 {{if .CampaignID}}hx-get="/drops/campaigns/{{.CampaignID}}/items"
+                 hx-target="find .ev-detail-slot"
+                 hx-trigger="toggle once from:closest details"
+                 hx-swap="innerHTML"{{end}}>
+          <summary>
+            <span class="chev" aria-hidden="true">›</span>
+            <span class="t">{{if .When}}{{.When}}{{else}}—{{end}}</span>
+            <span class="lvl" style="color:var(--{{if eq .Platform "twitch"}}purple{{else if eq .Platform "kick"}}kick{{else}}muted{{end}})">●</span>
+            <span class="body"><em style="color:var(--{{if eq .Platform "twitch"}}purple{{else if eq .Platform "kick"}}kick{{else}}muted{{end}})">{{.Platform}}</em>{{if eq .Kind "reward"}} · reward{{end}} · <span style="color:var(--muted);">{{.Game}}</span> · {{.CampaignName}}</span>
+            {{/* Whitelist control lives in the right cell (replaces the old
+                 "not whitelisted" label + bottom add block). stopPropagation
+                 so interacting with it doesn't toggle the row open. */}}
+            <span class="ac whitelist-add" onclick="event.stopPropagation()">
+              {{if not .Game}}<span style="color:var(--muted);" title="this campaign reports no game — nothing to whitelist">no game</span>
+              {{else if $accts}}
+              <form method="post" action="/drops/whitelist/add" class="disc-add-form" onsubmit="this.querySelector('button').disabled=true">
+                <input type="hidden" name="csrf_token" value="{{$csrf}}">
+                <input type="hidden" name="name" value="{{.Game}}">
+                <select name="account_id" onclick="event.stopPropagation()" title="whitelist {{.Game}} for…">
+                  <option value="__global__">★ Global</option>
+                  {{range $accts}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
+                </select>
+                <button class="btn sm" type="submit" onclick="event.stopPropagation()">whitelist +</button>
+              </form>
+              {{else}}<span style="color:var(--muted);">no accounts</span>{{end}}
+            </span>
+          </summary>
+          <div class="ev-detail-slot">
+            {{if .CampaignID}}
+            <div class="ev-detail" style="color:var(--muted);font-size:11px;">Loading items…</div>
+            {{else}}
+            <div class="ev-detail" style="color:var(--muted);font-size:11px;">No item details available for this campaign.</div>
+            {{end}}
+          </div>
+        </details>
+        {{end}}
+      </div>
+      {{end}}
+    </section>
+
+  </div>
+</div>
+{{end}}

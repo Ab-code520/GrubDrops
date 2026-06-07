@@ -1,0 +1,33 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{block "title" .}}GrubDrops{{end}}</title>
+<link rel="icon" type="image/svg+xml" href="/static/img/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/app.css">
+<script src="https://unpkg.com/htmx.org@2.0.2" defer></script>
+</head>
+<body>
+{{template "nav" .}}
+<main>
+{{block "content" .}}{{end}}
+</main>
+<script>
+  (function () {
+    function tick() {
+      const el = document.querySelector('.clock');
+      if (!el) return;
+      const n = new Date();
+      const pad = (x) => String(x).padStart(2,'0');
+      el.textContent = pad(n.getUTCHours()) + ':' + pad(n.getUTCMinutes()) + ':' + pad(n.getUTCSeconds()) + ' UTC';
+    }
+    tick(); setInterval(tick, 1000);
+  })();
+</script>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,47 @@
+# binaries
+/grubdrops
+/miner
+/browser-sidecar
+/bin/
+# built helper binaries (cross-compiled into the image at build time)
+/grubdrops-helper*
+/helpers/
+
+# local data
+/data/
+*.db
+*.db-wal
+*.db-shm
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# tooling
+.DS_Store
+*.swp
+*.swo
+*.log
+.idea/
+.vscode/
+
+# coverage / test output
+coverage.out
+*.out
+*.test
+
+# build / dist
+dist/
+out/
+
+# stray local build binaries (cmd/* tools)
+/kick-http
+/kick-login
+/kick-watch
+/kick-encrypt
+/kick-cli
+
+# playwright / scratch
+.playwright-mcp/
+/tmp/

@@ -1,0 +1,75 @@
+{{define "login_twitch_paste.html"}}{{template "layout" .}}{{end}}
+
+{{define "title"}}Twitch login · GrubDrops{{end}}
+
+{{define "content"}}
+{{with .Page}}
+<div class="auth-wrap wide">
+  <div class="auth-card">
+    <div class="kicker">// twitch · authorize</div>
+    <h1>Authorize {{.DisplayName}}</h1>
+    <p class="intro">Twitch's integrity gate rejects web-issued auth-tokens — gql returns <code>dropCampaigns: null</code>, PubSub LISTEN returns <code>ERR_BADAUTH</code>. Only Android-issued OAuth tokens pass. Three paths below; first one is the only one that fully unlocks drops.</p>
+  </div>
+
+  <div class="auth-card method preferred">
+    <div class="method-head">
+      <span class="method-tag">recommended</span>
+      <h2>Device-code login</h2>
+    </div>
+    <p>Mints an Android-issued OAuth token via Twitch's official device-code flow. The miner injects it as the <code>auth-token</code> cookie in the sidecar tab so gql + PubSub both unlock.</p>
+    <div class="method-cta">
+      <a class="btn primary" href="/accounts/{{.AccountID}}/twitch/device">Start device-code →</a>
+      <span class="hint">Opens activate.twitch.tv with a 6-character code. ~30 seconds.</span>
+    </div>
+  </div>
+
+  <div class="auth-card method">
+    <div class="method-head">
+      <span class="method-tag muted">alt</span>
+      <h2>Helper CLI / pre-built app</h2>
+    </div>
+    <p><strong>Note:</strong> cookies snapshotted from your browser are web-issued, so they DO NOT pass integrity (same outcome as the manual paste below). Useful for legacy accounts or debugging only.</p>
+    <div class="cli-box">
+      <div class="cli-label">one-liner</div>
+      <pre class="cli-code">go run ./cmd/grubdrops-helper twitch {{.AccountID}}</pre>
+      <div class="cli-hint">From the repo root. Add <code>--miner URL</code> for a remote deployment.</div>
+    </div>
+  </div>
+
+  <div class="auth-card method">
+    <div class="method-head">
+      <span class="method-tag muted">fallback</span>
+      <h2>Manual cookie paste</h2>
+    </div>
+    <ol class="steps">
+      <li>Open <code>twitch.tv</code> in any browser and sign in.</li>
+      <li>DevTools → Application → Cookies → <code>https://www.twitch.tv</code>.</li>
+      <li>Copy at minimum <code>auth-token</code>.</li>
+      <li>Paste below. Same integrity caveat as the helper CLI.</li>
+    </ol>
+  </div>
+  {{end}}
+  {{if .Flash}}<div class="auth-flash"><div class="err">{{.Flash}}</div></div>{{end}}
+  {{with .Page}}
+  <div class="auth-card">
+    <form method="post" action="/accounts/{{.AccountID}}/twitch/paste">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <label>auth-token <span class="req">(required)</span><input type="text" name="auth-token" required autocomplete="off"></label>
+      <label>persistent <span class="opt">(optional)</span><input type="text" name="persistent" autocomplete="off"></label>
+      <label>server_session_id <span class="opt">(optional)</span><input type="text" name="server_session_id" autocomplete="off"></label>
+      <label>twilight-user <span class="opt">(optional)</span><input type="text" name="twilight-user" autocomplete="off"></label>
+      <label>unique_id <span class="opt">(optional)</span><input type="text" name="unique_id" autocomplete="off"></label>
+      <label>login <span class="opt">(optional)</span><input type="text" name="login" autocomplete="off"></label>
+      <label>name <span class="opt">(optional)</span><input type="text" name="name" autocomplete="off"></label>
+      <label>raw paste <span class="opt">(optional — name=value lines, overrides empty fields above)</span>
+        <textarea name="raw" rows="6" class="raw-paste" autocomplete="off"></textarea>
+      </label>
+      <div class="submit-row">
+        <a class="alt" href="/accounts">← cancel</a>
+        <button class="btn primary" type="submit">Authorize →</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,27 @@
+{
+  "data": {
+    "user": {
+      "dropCampaign": {
+        "id": "camp1",
+        "name": "Rust Twitch Drops",
+        "allow": {
+          "isEnabled": true,
+          "channels": [
+            {"id": "111", "name": "fakestreamer"},
+            {"id": "222", "name": "another"}
+          ]
+        },
+        "timeBasedDrops": [
+          {
+            "id": "drop1",
+            "name": "Helmet",
+            "requiredMinutesWatched": 60,
+            "benefitEdges": [
+              {"benefit": {"id": "ben1", "name": "Wolf Helmet", "imageAssetURL": "https://example/img.png"}}
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

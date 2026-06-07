@@ -1,0 +1,201 @@
+syntax = "proto3";
+
+package browser.v1;
+
+option go_package = "github.com/aalejandrofer/grubdrops/internal/auth/browser/gen/browser/v1;browserv1";
+
+service Browser {
+  // Kick RPCs (unchanged).
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
+  rpc StartWatch(StartWatchRequest) returns (StartWatchResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc StopWatch(StopWatchRequest) returns (StopWatchResponse);
+  rpc Inventory(InventoryRequest) returns (InventoryResponse);
+  rpc Claim(ClaimRequest) returns (ClaimResponse);
+  // KickScrapeActiveDrops scrapes https://kick.com/drops for the full
+  // list of active drop campaigns across every game (not just Rust).
+  rpc KickScrapeActiveDrops(KickScrapeActiveDropsRequest) returns (KickScrapeActiveDropsResponse);
+
+  // Twitch RPCs. The sidecar keeps a logged-in twitch.tv tab open per
+  // account and proxies GraphQL calls through it so Twitch's anti-bot
+  // integrity check sees a real browser context.
+  rpc TwitchAuthenticate(TwitchAuthenticateRequest) returns (TwitchAuthenticateResponse);
+  rpc TwitchGQL(TwitchGQLRequest) returns (TwitchGQLResponse);
+  rpc TwitchOpenStream(TwitchOpenStreamRequest) returns (TwitchOpenStreamResponse);
+  rpc TwitchHeartbeat(TwitchHeartbeatRequest) returns (TwitchHeartbeatResponse);
+  rpc TwitchStopWatch(TwitchStopWatchRequest) returns (TwitchStopWatchResponse);
+  // TwitchClaimRewards visits /drops/inventory in the account's tab
+  // and clicks Claim on every unclaimed reward whose game is in the
+  // optional allow-list (empty list = claim all). Returns the list of
+  // reward titles successfully claimed.
+  rpc TwitchClaimRewards(TwitchClaimRewardsRequest) returns (TwitchClaimRewardsResponse);
+}
+
+message Cookie {
+  string name = 1;
+  string value = 2;
+  string domain = 3;
+  string path = 4;
+}
+
+message KickSession {
+  repeated Cookie cookies = 1;
+  string xsrf_token = 2;
+  string user_agent = 3;
+}
+
+message AuthenticateRequest {
+  KickSession session = 1;
+}
+
+message AuthenticateResponse {
+  KickSession session = 1;
+  string username = 2;
+}
+
+message StartWatchRequest {
+  KickSession session = 1;
+  string channel = 2;
+}
+
+message StartWatchResponse {
+  string watch_handle = 1;
+}
+
+message HeartbeatRequest {
+  string watch_handle = 1;
+}
+
+message HeartbeatResponse {
+  bool alive = 1;
+}
+
+message StopWatchRequest {
+  string watch_handle = 1;
+}
+
+message StopWatchResponse {}
+
+message DropProgress {
+  string benefit_id = 1;
+  int32 minutes_watched = 2;
+  bool claimed = 3;
+}
+
+message InventoryRequest {
+  KickSession session = 1;
+}
+
+message InventoryResponse {
+  repeated DropProgress drops = 1;
+}
+
+message ClaimRequest {
+  KickSession session = 1;
+  string benefit_id = 2;
+}
+
+message ClaimResponse {
+  bool already_claimed = 1;
+}
+
+message KickBenefit {
+  string id = 1;
+  string name = 2;
+  int32 required_minutes = 3;
+  string image_url = 4;
+}
+
+message KickCampaign {
+  string id = 1;
+  string game = 2;
+  string name = 3;
+  int64 starts_at = 4; // unix seconds, 0 if unknown
+  int64 ends_at = 5;   // unix seconds, 0 if unknown
+  string status = 6;
+  repeated KickBenefit benefits = 7;
+}
+
+message KickScrapeActiveDropsRequest {
+  // account_id is used to reuse the per-account auth tab; the sidecar
+  // expects KickAuthenticate (or first ScrapeActiveDrops) to have
+  // primed cookies for this account already, OR a fresh session here.
+  string account_id = 1;
+  KickSession session = 2;
+}
+
+message KickScrapeActiveDropsResponse {
+  repeated KickCampaign campaigns = 1;
+}
+
+// ---- Twitch ----
+
+message TwitchSession {
+  repeated Cookie cookies = 1;
+  string user_agent = 2;
+}
+
+message TwitchAuthenticateRequest {
+  string account_id = 1;
+  TwitchSession session = 2;
+}
+
+message TwitchAuthenticateResponse {
+  string username = 1;
+  string user_id = 2;
+  TwitchSession session = 3; // round-tripped, may have refreshed cookies
+}
+
+message TwitchGQLRequest {
+  string account_id = 1;
+  string operation_name = 2;
+  // JSON body the miner already marshals. Sidecar evaluates fetch()
+  // from inside the twitch.tv tab and returns the raw response body.
+  bytes body = 3;
+}
+
+message TwitchGQLResponse {
+  bytes body = 1;
+  int32 status = 2;
+}
+
+message TwitchOpenStreamRequest {
+  string account_id = 1;
+  string channel = 2;
+}
+
+message TwitchOpenStreamResponse {
+  string watch_handle = 1;
+}
+
+message TwitchHeartbeatRequest {
+  string watch_handle = 1;
+}
+
+message TwitchHeartbeatResponse {
+  bool alive = 1;
+}
+
+message TwitchStopWatchRequest {
+  string watch_handle = 1;
+}
+
+message TwitchStopWatchResponse {}
+
+message TwitchClaimRewardsRequest {
+  string account_id = 1;
+  // Lowercased game names + slugs. Empty -> claim all visible rewards.
+  repeated string allowed_games = 2;
+}
+
+message TwitchClaimedReward {
+  string game = 1;
+  string title = 2;
+}
+
+message TwitchClaimRewardsResponse {
+  repeated TwitchClaimedReward claimed = 1;
+  // Soft errors per-reward — claim attempt that didn't crash but
+  // didn't succeed either. Caller logs and continues.
+  repeated string errors = 2;
+}

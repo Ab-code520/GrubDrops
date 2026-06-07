@@ -1,0 +1,259 @@
+{{define "accounts_detail.html"}}{{template "layout" .}}{{end}}
+
+{{define "title"}}Account · GrubDrops{{end}}
+
+{{define "content"}}
+{{with .Page}}
+{{with .Account}}
+<div class="shell">
+  <div class="ph">
+    <div>
+      <div class="kicker">// accounts / edit</div>
+      <h1>{{.DisplayName}}</h1>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="platrow">
+      <span>platform: <code>{{.Platform}}</code></span>
+      <span>name: <code>{{.DisplayName}}</code></span>
+      <span>id: <code>{{.ID}}</code></span>
+    </div>
+
+    {{if eq .Platform "twitch"}}
+    <div class="reauth-row">
+      <div class="reauth-actions">
+        <a class="btn" href="/accounts/{{.ID}}/login">Authenticate with device code →</a>
+        <span class="hint">Twitch login is <strong>device-code only</strong>. You get a short code, open <code>twitch.tv/activate</code> on any browser signed into the Twitch account for <strong>{{.DisplayName}}</strong>, and approve it. No password or cookies pass through GrubDrops; a new session replaces the old one.</span>
+      </div>
+      <details class="reauth-cli">
+        <summary>Authorize from another machine (helper CLI / app)</summary>
+        <p class="hint">Runs the same device-code flow from a friend's machine — they approve with their own Twitch login, the token is pushed back to this miner. No cookies, no DevTools.</p>
+        <pre class="cli-code">go run ./cmd/grubdrops-helper twitch {{.ID}}</pre>
+        <p class="hint">Add <code>--miner URL</code> for a remote deployment. Prebuilt <code>.exe</code> / <code>.app</code> / <code>AppImage</code> ship from the same entry point.</p>
+      </details>
+    </div>
+    {{else if eq .Platform "kick"}}
+    <div class="reauth-row">
+      <div class="reauth-actions">
+        <a class="btn" href="/accounts/{{.ID}}/login">Re-authenticate →</a>
+        <span class="hint">Kick auth needs real browser cookies (the API rejects automated logins). Use the helper below to snapshot them. Existing session is overwritten.</span>
+      </div>
+      <details class="reauth-cli">
+        <summary>Authorize via helper CLI / pre-built app</summary>
+        <p class="hint">Snapshots your logged-in Kick browser cookies and pushes them to the miner — no DevTools or paste forms.</p>
+        <pre class="cli-code">go run ./cmd/grubdrops-helper kick {{.ID}} --channel STREAMER</pre>
+        <p class="hint">Add <code>--miner URL</code> for a remote deployment. Prebuilt <code>.exe</code> / <code>.app</code> / <code>AppImage</code> ship from the same entry point.</p>
+      </details>
+    </div>
+    {{end}}
+
+    <form method="post" action="/accounts/{{.ID}}/update">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <label>Display name<input type="text" name="display_name" value="{{.DisplayName}}"></label>
+      <label class="cb">
+        <input type="checkbox" name="enabled" value="1" {{if eq .Enabled 1}}checked{{end}}>
+        Enabled
+      </label>
+      <label>Discord webhook URL <span style="text-transform:none;font-family:'IBM Plex Sans',sans-serif;letter-spacing:0;color:var(--muted);font-size:11px;">(overrides global)</span>
+        <input type="url" name="webhook_url" value="{{.WebhookUrl.String}}" placeholder="https://discord.com/api/webhooks/…">
+      </label>
+      <div class="row">
+        <a class="back-link" href="/accounts">← back</a>
+        <button class="btn primary" type="submit">Save →</button>
+      </div>
+    </form>
+
+    <div class="danger">
+      <h3>Danger zone</h3>
+      <form method="post" action="/accounts/{{.ID}}/delete" onsubmit="return confirm('Delete this account permanently?');">
+        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+        <button type="submit">Delete account</button>
+      </form>
+    </div>
+  </div>
+{{end}}{{/* .Account */}}
+
+  <div class="form-card" style="margin-top: 18px;">
+    <h2 style="margin: 0 0 6px;">Games</h2>
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 14px;">
+      The watcher only mines campaigns whose game appears here. Order = priority (top = mined first). Account with empty selection idles.
+    </p>
+    <form method="post" action="/accounts/{{.Account.ID}}/games" id="games-form">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+        <div>
+          <div class="kicker" style="margin-bottom: 8px;">Selected · drag to reorder</div>
+          <ul id="selected-list" style="list-style:none;margin:0;padding:0;border:1px dashed var(--line);min-height:200px;">
+            {{range .SelectedGames}}
+            <li draggable="true" data-game-id="{{.ID}}" style="padding:8px 12px;border-bottom:1px solid var(--line);cursor:grab;display:flex;align-items:center;justify-content:space-between;background:var(--bg-soft, #14151a);">
+              <span>{{.Name}}</span>
+              <button type="button" class="alt" onclick="removeGame('{{.ID}}')" style="border:none;background:transparent;color:var(--muted);cursor:pointer;">remove ×</button>
+            </li>
+            {{end}}
+            {{if not .SelectedGames}}
+            <li style="padding:12px;color:var(--muted);font-size:12px;text-align:center;">No games selected — pick from the right →</li>
+            {{end}}
+          </ul>
+        </div>
+        <div>
+          <div class="kicker" style="margin-bottom: 8px;">Available</div>
+          <ul id="available-list" style="list-style:none;margin:0;padding:0;border:1px dashed var(--line);max-height:300px;overflow-y:auto;">
+            {{range .AllGames}}
+            {{if not .Selected}}
+            <li data-game-id="{{.ID}}" style="padding:8px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;">
+              <span>{{.Name}}</span>
+              <button type="button" class="alt" onclick="addGame('{{.ID}}','{{.Name}}')" style="border:none;background:transparent;color:var(--accent);cursor:pointer;">add +</button>
+            </li>
+            {{end}}
+            {{end}}
+          </ul>
+        </div>
+      </div>
+      <div class="row" style="margin-top: 16px;">
+        <span style="color:var(--muted);font-size:11px;">Order in the left column = mining priority.</span>
+        <button class="btn primary" type="submit">Save games →</button>
+      </div>
+    </form>
+
+    <form method="post" action="/accounts/{{.Account.ID}}/games/add" style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--line);display:flex;gap:8px;align-items:center;">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <span class="kicker" style="margin:0;">Add by name:</span>
+      <input type="text" name="name" placeholder="e.g. Marvel Rivals" required style="flex:1;max-width:280px;padding:6px 10px;background:var(--surface);border:1px solid var(--line);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;">
+      <button class="btn" type="submit">Add →</button>
+      <span style="color:var(--muted);font-size:11px;">Whitelist a game before discovery surfaces it.</span>
+    </form>
+
+    <form method="post" action="/accounts/{{.Account.ID}}/games/use-global" style="margin-top:12px;display:flex;gap:8px;align-items:center;" onsubmit="return confirm('Clear this account whitelist and follow the global priority list?');">
+      <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+      <button class="btn" type="submit">Use global priority list</button>
+      <span style="color:var(--muted);font-size:11px;">Clears the account override. Watcher reads Settings → Global priority.</span>
+    </form>
+  </div>
+</div>
+
+<style>
+  #selected-list li.drag-over-top { box-shadow: inset 0 2px 0 0 var(--accent, #7cf); }
+  #selected-list li.drag-over-bot { box-shadow: inset 0 -2px 0 0 var(--accent, #7cf); }
+  #selected-list li.dragging { opacity: 0.4; }
+</style>
+<script>
+(function() {
+  const sel = document.getElementById('selected-list');
+  const avail = document.getElementById('available-list');
+  const form = document.getElementById('games-form');
+
+  function addInputs() {
+    // Drop any existing inputs then rebuild from current order.
+    form.querySelectorAll('input[name="game_ids[]"]').forEach(n => n.remove());
+    sel.querySelectorAll('li[data-game-id]').forEach(li => {
+      const i = document.createElement('input');
+      i.type = 'hidden';
+      i.name = 'game_ids[]';
+      i.value = li.dataset.gameId;
+      form.appendChild(i);
+    });
+  }
+
+  function clearDragCues() {
+    sel.querySelectorAll('.drag-over-top, .drag-over-bot').forEach(n => {
+      n.classList.remove('drag-over-top', 'drag-over-bot');
+    });
+  }
+
+  window.addGame = function(id, name) {
+    if (sel.querySelector('li[data-game-id="'+id+'"]')) return;
+    const placeholder = sel.querySelector('li:not([data-game-id])');
+    if (placeholder) placeholder.remove();
+    const li = document.createElement('li');
+    li.dataset.gameId = id;
+    li.draggable = true;
+    li.style.cssText = 'padding:8px 12px;border-bottom:1px solid var(--line);cursor:grab;display:flex;align-items:center;justify-content:space-between;background:var(--bg-soft,#14151a);';
+    li.innerHTML = '<span>' + name + '</span><button type="button" class="alt" onclick="removeGame(\''+id+'\')" style="border:none;background:transparent;color:var(--muted);cursor:pointer;">remove ×</button>';
+    bindDrag(li);
+    sel.appendChild(li);
+    // also remove from available
+    const a = avail.querySelector('li[data-game-id="'+id+'"]');
+    if (a) a.remove();
+  };
+
+  window.removeGame = function(id) {
+    const li = sel.querySelector('li[data-game-id="'+id+'"]');
+    if (!li) return;
+    const name = li.querySelector('span').textContent;
+    li.remove();
+    const a = document.createElement('li');
+    a.dataset.gameId = id;
+    a.style.cssText = 'padding:8px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;';
+    a.innerHTML = '<span>' + name + '</span><button type="button" class="alt" onclick="addGame(\''+id+'\',\''+name+'\')" style="border:none;background:transparent;color:var(--accent);cursor:pointer;">add +</button>';
+    avail.appendChild(a);
+  };
+
+  let dragSrc = null;
+  function bindDrag(li) {
+    if (li.dataset.dragBound === '1') return; // idempotent
+    li.dataset.dragBound = '1';
+    if (!li.hasAttribute('draggable')) li.setAttribute('draggable', 'true');
+
+    li.addEventListener('dragstart', function(e) {
+      dragSrc = li;
+      try { e.dataTransfer.effectAllowed = 'move'; } catch (_) {}
+      // Firefox requires dataTransfer.setData to actually start a drag.
+      try { e.dataTransfer.setData('text/plain', li.dataset.gameId || ''); } catch (_) {}
+      li.classList.add('dragging');
+    });
+    li.addEventListener('dragend', function() {
+      li.classList.remove('dragging');
+      clearDragCues();
+      dragSrc = null;
+    });
+    li.addEventListener('dragover', function(e) {
+      if (!dragSrc || dragSrc === li) return;
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = 'move'; } catch (_) {}
+      const rect = li.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      clearDragCues();
+      li.classList.add(before ? 'drag-over-top' : 'drag-over-bot');
+    });
+    li.addEventListener('dragleave', function() {
+      li.classList.remove('drag-over-top', 'drag-over-bot');
+    });
+    li.addEventListener('drop', function(e) {
+      if (!dragSrc || dragSrc === li) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = li.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      sel.insertBefore(dragSrc, before ? li : li.nextSibling);
+      clearDragCues();
+    });
+  }
+
+  // Allow dropping onto the empty area of the <ul> (e.g. below the last item).
+  sel.addEventListener('dragover', function(e) {
+    if (!dragSrc) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch (_) {}
+  });
+  sel.addEventListener('drop', function(e) {
+    if (!dragSrc) return;
+    // Only handle drops directly on the list (not bubbled from an <li>, which handled its own drop).
+    if (e.target === sel) {
+      e.preventDefault();
+      sel.appendChild(dragSrc);
+      clearDragCues();
+    }
+  });
+
+  sel.querySelectorAll('li[data-game-id]').forEach(bindDrag);
+
+  // formdata fires right before the form is serialized — guaranteed timing,
+  // and works for both classic submit and programmatic submission.
+  form.addEventListener('formdata', addInputs);
+  // Fallback for older browsers without FormData event support.
+  form.addEventListener('submit', addInputs);
+})();
+</script>
+{{end}}{{/* .Page */}}
+{{end}}
