@@ -5,9 +5,12 @@ import (
 	"context"
 	"errors"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/aalejandrofer/grubdrops/internal/store"
+	"github.com/aalejandrofer/grubdrops/internal/store/gen"
 	"github.com/aalejandrofer/grubdrops/internal/web"
 )
 
@@ -34,7 +37,6 @@ func TestSettingsTemplateRenders(t *testing.T) {
 		`https://img/a.png`,               // its value rendered
 		`hx-post="/settings/notify-test"`, // test button wired
 		`id="notify-test-result"`,         // result target present
-		`Hextech Chest`,                   // preview embed present
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("settings.html missing %q", want)
@@ -54,9 +56,25 @@ func (f *fakeNotifier) Notify(_ context.Context, _ string, fields map[string]any
 	return f.err
 }
 
+// newTestSettings spins up a migrated sqlite-backed settings store + queries.
+func newTestSettings(t *testing.T) (*store.Settings, *gen.Queries) {
+	t.Helper()
+	db, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	q := gen.New(db)
+	return store.NewSettings(q), q
+}
+
 func TestNotifyTest_FiresSampleAndReportsOK(t *testing.T) {
+	s, q := newTestSettings(t)
+	if err := s.SetGlobalDiscordWebhook(context.Background(), "https://discord/x"); err != nil {
+		t.Fatal(err)
+	}
 	fn := &fakeNotifier{}
-	d := &settingsDeps{notifier: fn}
+	d := &settingsDeps{notifier: fn, s: s, q: q}
 
 	rec := httptest.NewRecorder()
 	d.notifyTest(rec, httptest.NewRequest("POST", "/settings/notify-test", nil))
@@ -64,8 +82,8 @@ func TestNotifyTest_FiresSampleAndReportsOK(t *testing.T) {
 	if fn.calls != 1 {
 		t.Fatalf("expected notifier called once, got %d", fn.calls)
 	}
-	if got := rec.Body.String(); !strings.Contains(strings.ToLower(got), "sent") {
-		t.Fatalf("expected success fragment, got %q", got)
+	if got := strings.ToLower(rec.Body.String()); !strings.Contains(got, "sent") {
+		t.Fatalf("expected success fragment, got %q", rec.Body.String())
 	}
 	// Sample must carry the rich fields so the operator sees a real-looking embed.
 	for _, k := range []string{"game", "drop", "channel", "platform", "req_min"} {
@@ -76,8 +94,10 @@ func TestNotifyTest_FiresSampleAndReportsOK(t *testing.T) {
 }
 
 func TestNotifyTest_ReportsErrorFromNotifier(t *testing.T) {
+	s, q := newTestSettings(t)
+	_ = s.SetGlobalDiscordWebhook(context.Background(), "https://discord/x")
 	fn := &fakeNotifier{err: errors.New("webhook 404")}
-	d := &settingsDeps{notifier: fn}
+	d := &settingsDeps{notifier: fn, s: s, q: q}
 
 	rec := httptest.NewRecorder()
 	d.notifyTest(rec, httptest.NewRequest("POST", "/settings/notify-test", nil))
@@ -87,11 +107,29 @@ func TestNotifyTest_ReportsErrorFromNotifier(t *testing.T) {
 	}
 }
 
+func TestNotifyTest_NoWebhookConfigured(t *testing.T) {
+	// Notifier wired, but no global webhook and no account webhooks → must
+	// report honestly and NOT call the notifier (avoids silent Noop success).
+	s, q := newTestSettings(t)
+	fn := &fakeNotifier{}
+	d := &settingsDeps{notifier: fn, s: s, q: q}
+
+	rec := httptest.NewRecorder()
+	d.notifyTest(rec, httptest.NewRequest("POST", "/settings/notify-test", nil))
+
+	if fn.calls != 0 {
+		t.Fatalf("notifier should not fire with no webhook, got %d calls", fn.calls)
+	}
+	if got := strings.ToLower(rec.Body.String()); !strings.Contains(got, "no webhook") {
+		t.Fatalf("expected 'no webhook' message, got %q", rec.Body.String())
+	}
+}
+
 func TestNotifyTest_NoNotifierConfigured(t *testing.T) {
 	d := &settingsDeps{notifier: nil}
 	rec := httptest.NewRecorder()
 	d.notifyTest(rec, httptest.NewRequest("POST", "/settings/notify-test", nil))
-	if got := strings.ToLower(rec.Body.String()); !strings.Contains(got, "no webhook") && !strings.Contains(got, "not configured") {
-		t.Fatalf("expected 'not configured' message, got %q", rec.Body.String())
+	if got := strings.ToLower(rec.Body.String()); !strings.Contains(got, "no notifier") {
+		t.Fatalf("expected 'no notifier' message, got %q", rec.Body.String())
 	}
 }

@@ -199,13 +199,23 @@ func (d *settingsDeps) post(w http.ResponseWriter, r *http.Request) {
 // HTMX fragment (not a redirect) reporting success or the error.
 func (d *settingsDeps) notifyTest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if d.notifier == nil {
+	ctx := r.Context()
+	writeResult := func(ok bool, msg string) {
+		cls := "ok"
+		if !ok {
+			cls = "err"
+		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`<span class="notify-test-result err">no webhook configured</span>`))
+		_, _ = w.Write([]byte(`<span class="notify-test-result ` + cls + `">` + htmlEscape(msg) + `</span>`))
+	}
+
+	if d.notifier == nil {
+		slog.Warn("notify test: no notifier wired", "kind", "notify")
+		writeResult(false, "no notifier configured")
 		return
 	}
-	// A claim-shaped sample: rich fields so the rendered embed mirrors a
-	// real notification. No "account" key → routes to the global webhook.
+	// A claim-shaped sample: rich fields so the rendered embed mirrors a real
+	// notification.
 	sample := map[string]any{
 		"platform": "twitch",
 		"game":     "GrubDrops Test",
@@ -215,13 +225,39 @@ func (d *settingsDeps) notifyTest(w http.ResponseWriter, r *http.Request) {
 		"cur_min":  60,
 		"req_min":  60,
 	}
-	if err := d.notifier.Notify(r.Context(), "claim", sample); err != nil {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`<span class="notify-test-result err">failed: ` + htmlEscape(err.Error()) + `</span>`))
+	// Resolve a real target so we never silently no-op into the Noop notifier.
+	// Prefer the global webhook (no account field → routes to global). If no
+	// global is set, attach the first account that has its own webhook so the
+	// router sends there. With neither, report honestly.
+	globalURL, _ := d.s.GlobalDiscordWebhook(ctx)
+	target := "global webhook"
+	if globalURL == "" {
+		if d.q != nil {
+			if accs, err := d.q.ListEnabledAccounts(ctx); err == nil {
+				for _, a := range accs {
+					if a.WebhookUrl.Valid && strings.TrimSpace(a.WebhookUrl.String) != "" {
+						sample["account"] = a.ID
+						target = "account " + a.ID
+						break
+					}
+				}
+			}
+		}
+		if _, ok := sample["account"]; !ok {
+			slog.Warn("notify test: no webhook configured", "kind", "notify")
+			writeResult(false, "no webhook configured — set a global or per-account webhook and Save first")
+			return
+		}
+	}
+
+	slog.Info("notify test firing", "kind", "notify", "target", target)
+	if err := d.notifier.Notify(ctx, "claim", sample); err != nil {
+		slog.Warn("notify test failed", "kind", "error", "target", target, "err", err)
+		writeResult(false, "failed: "+err.Error())
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`<span class="notify-test-result ok">test sent ✓ — check Discord</span>`))
+	slog.Info("notify test sent", "kind", "notify", "target", target)
+	writeResult(true, "test sent ✓ — check Discord")
 }
 
 // globalGamesAdd handles POST /settings/global-games/add — accepts a
