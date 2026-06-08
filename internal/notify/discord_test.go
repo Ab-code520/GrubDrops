@@ -172,6 +172,40 @@ func TestDiscordWebhook_OmitsBrandingWhenUnset(t *testing.T) {
 	assert.False(t, hasAvatar, "no avatar_url key when unset")
 }
 
+func TestBuildEmbed_TestEventLooksLikeClaim(t *testing.T) {
+	embed := buildEmbed(EventTest, map[string]any{
+		"platform": "twitch", "game": "GrubDrops Test",
+		"drop": "Sample Reward", "cur_min": 60, "req_min": 60,
+	})
+	assert.Equal(t, 0x23A55A, embed["color"], "test embed is green like a claim")
+	fields := embed["fields"].([]map[string]any)
+	var label, val string
+	for _, f := range fields {
+		if n := f["name"].(string); strings.Contains(n, "Test") {
+			label, val = n, f["value"].(string)
+		}
+	}
+	assert.Contains(t, label, "✅")
+	assert.Equal(t, 10, strings.Count(val, "▰"), "full bar")
+}
+
+func TestVerbosityFilter_AlwaysAllowsTestEvent(t *testing.T) {
+	var hit int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hit++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	// Filter with every real kind OFF — a manual test must still go through.
+	n := NewDiscordWebhook(srv.URL, &VerbosityFilter{Allow: map[string]bool{
+		EventClaim: false, EventProgress: false, EventAuth: false, EventError: false,
+		EventTest: true,
+	}})
+	require.NoError(t, n.Notify(context.Background(), EventTest, map[string]any{"drop": "x"}))
+	assert.Equal(t, 1, hit, "test event delivered despite all kinds off")
+}
+
 func TestDiscordWebhook_DropsBelowVerbosity(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("should not have been called")

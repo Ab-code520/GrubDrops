@@ -251,7 +251,9 @@ func (d *settingsDeps) notifyTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("notify test firing", "kind", "notify", "target", target)
-	if err := d.notifier.Notify(ctx, "claim", sample); err != nil {
+	// "test" event — the verbosity filter always allows it, so a manual test
+	// delivers even when the user has every real notification kind toggled off.
+	if err := d.notifier.Notify(ctx, "test", sample); err != nil {
 		slog.Warn("notify test failed", "kind", "error", "target", target, "err", err)
 		writeResult(false, "failed: "+err.Error())
 		return

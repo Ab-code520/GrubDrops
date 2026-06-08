@@ -133,6 +133,8 @@ func run() error {
 			notify.EventAuth:     auth,
 			notify.EventError:    errs,
 			notify.EventState:    false,
+			// Manual "send test" always delivers, regardless of toggles.
+			notify.EventTest: true,
 		}}
 		globalURL, _ := settingsStore.GlobalDiscordWebhook(ctx)
 		if globalURL == "" {

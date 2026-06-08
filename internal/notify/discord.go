@@ -134,11 +134,15 @@ func buildEmbed(event Event, fields map[string]any) map[string]any {
 		if req := intf("req_min"); req > 0 {
 			cur := intf("cur_min")
 			label := "⏳ Mining"
-			if event == EventClaim {
+			switch event {
+			case EventClaim:
 				label = "✅ Claimed"
 				if cur < req {
 					cur = req // claim implies the requirement is met
 				}
+			case EventTest:
+				label = "✅ Test"
+				cur = req // a test always shows complete
 			}
 			add(label, fmt.Sprintf("`%d/%d min`\n%s", cur, req, progressBar(cur, req)), false)
 		}
@@ -228,7 +232,7 @@ func titleFor(event Event) string {
 // red; otherwise drop events take their platform's brand color.
 func colorFor(event Event, fields map[string]any) int {
 	switch event {
-	case EventClaim:
+	case EventClaim, EventTest:
 		return 0x23A55A
 	case EventError:
 		return 0xE74C3C
