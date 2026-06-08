@@ -22,7 +22,7 @@
         {{end}}
       </div>
       {{else}}
-      <div class="events drops-rows">
+      <div class="events drops-rows scroll-cap">
         {{range .Rows}}
         <details class="ev kind-{{if eq .Kind "reward"}}auth{{else}}claim{{end}}{{if eq .Kind "reward"}} drop-dim{{end}}{{if .NeedsConnect}} ev-linkrow{{end}}"
                  {{if .CampaignID}}hx-get="/drops/campaigns/{{.CampaignID}}/items"
