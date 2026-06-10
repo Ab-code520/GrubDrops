@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -59,26 +61,30 @@ func (d oidcDeps) callback(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(oidcStateCookie)
 	queryState := r.URL.Query().Get("state")
 	if err != nil || cookie.Value == "" || cookie.Value != queryState {
-		d.fail(w, r, "login session expired, try again")
+		d.fail(w, r, "login session expired, try again", nil)
 		return
 	}
-	nonce, verifier, err := d.hs.Take(r.Context(), queryState)
-	if err != nil {
-		d.fail(w, r, "login session expired, try again")
+	if e := r.URL.Query().Get("error"); e != "" {
+		d.fail(w, r, "sign-in denied by provider", fmt.Errorf("idp error: %s", e))
 		return
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		d.fail(w, r, "authorization failed")
+		d.fail(w, r, "authorization failed", nil)
+		return
+	}
+	nonce, verifier, err := d.hs.Take(r.Context(), queryState)
+	if err != nil {
+		d.fail(w, r, "login session expired, try again", err)
 		return
 	}
 	claims, err := d.p.ExchangeAndVerify(r.Context(), code, verifier, nonce)
 	if err != nil {
-		d.fail(w, r, "sign-in failed")
+		d.fail(w, r, "sign-in failed", err)
 		return
 	}
 	if err := d.p.Authorize(claims); err != nil {
-		d.fail(w, r, "account not allowed")
+		d.fail(w, r, "account not allowed", err)
 		return
 	}
 	if err := d.sm.RenewToken(r.Context()); err != nil {
@@ -101,7 +107,8 @@ func (d oidcDeps) clearStateCookie(w http.ResponseWriter) {
 	})
 }
 
-func (d oidcDeps) fail(w http.ResponseWriter, r *http.Request, msg string) {
+func (d oidcDeps) fail(w http.ResponseWriter, r *http.Request, msg string, err error) {
+	slog.Warn("oidc callback failed", "reason", msg, "err", err)
 	d.sm.Put(r.Context(), "flash", msg)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

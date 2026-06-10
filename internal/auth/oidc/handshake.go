@@ -50,14 +50,13 @@ func (h *HandshakeStore) Put(ctx context.Context, state, nonce, verifier string,
 func (h *HandshakeStore) Take(ctx context.Context, state string) (nonce, verifier string, err error) {
 	key := handshakePrefix + state
 	var blob []byte
-	err = h.db.QueryRowContext(ctx, `SELECT value FROM kv WHERE key = ?`, key).Scan(&blob)
+	err = h.db.QueryRowContext(ctx, `DELETE FROM kv WHERE key = ? RETURNING value`, key).Scan(&blob)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", fmt.Errorf("unknown oidc state")
 	}
 	if err != nil {
 		return "", "", err
 	}
-	_, _ = h.db.ExecContext(ctx, `DELETE FROM kv WHERE key = ?`, key)
 
 	var rec handshakeRecord
 	if err := json.Unmarshal(blob, &rec); err != nil {
