@@ -54,7 +54,7 @@ Twitch and Kick don't let you in the same way, so GrubDrops talks to each one on
 
 ```bash
 go build -o grubdrops ./cmd/miner
-MINER_MASTER_KEY=$(head -c32 /dev/urandom | base64) ./grubdrops   # http://localhost:8080
+GRUB_MASTER_KEY=$(head -c32 /dev/urandom | base64) ./grubdrops   # http://localhost:8080
 ```
 
 The first run asks you to create an admin login. For Twitch, add an account and approve the device code at `twitch.tv/activate`. For Kick, download the helper from the Kick login page (or paste your cookies in by hand). Channels auto-discover from each campaign's game, so there's nothing else to configure.
@@ -65,13 +65,13 @@ Everything is set through environment variables:
 
 | Var | Default | Purpose |
 |-----|---------|---------|
-| `MINER_MASTER_KEY` | required | Key for the age-encrypted session store. |
-| `MINER_HTTP_ADDR` | `:8080` | Listen address. |
-| `MINER_DISCOVERY_INTERVAL` | `5m` | How often the catalog is scraped. |
-| `MINER_AUTHCHECK_INTERVAL` | `12h` | How often auth health is swept. |
-| `MINER_DISCORD_WEBHOOK_URL` | none | Optional global Discord webhook. |
-| `MINER_HELPER_DIR` | `/helpers` | Where the baked cookie-helper binaries live. |
-| `MINER_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error`. |
+| `GRUB_MASTER_KEY` | required | Key for the age-encrypted session store. |
+| `GRUB_HTTP_ADDR` | `:8080` | Listen address. |
+| `GRUB_DISCOVERY_INTERVAL` | `5m` | How often the catalog is scraped. |
+| `GRUB_AUTHCHECK_INTERVAL` | `12h` | How often auth health is swept. |
+| `GRUB_DISCORD_WEBHOOK_URL` | none | Optional global Discord webhook. |
+| `GRUB_HELPER_DIR` | `/helpers` | Where the baked cookie-helper binaries live. |
+| `GRUB_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error`. |
 
 ### Single sign-on (OIDC)
 
