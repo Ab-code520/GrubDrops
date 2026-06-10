@@ -5,8 +5,7 @@
 {{define "content"}}
 <div class="auth-wrap">
   <div class="auth-card auth-centered">
-    <div class="kicker">// login</div>
-    <h1>GrubDrops</h1>
+    <img class="auth-logo" src="/static/img/icon-512.png" alt="GrubDrops" width="104" height="104">
     {{if .Flash}}<div class="err">{{.Flash}}</div>{{end}}
 
     {{if .OIDCEnabled}}
