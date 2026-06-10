@@ -2810,7 +2810,14 @@
   line-height: 1;
   margin: 0 0 22px;
 }
-.auth-name .dot { color: var(--accent); }
+.auth-name .dot {
+  display: inline-block;
+  width: .26em; height: .26em;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+  margin: 0 .22em .12em;
+}
 
 .btn-sso {
   display: block;

@@ -20,7 +20,7 @@
 <script src="https://unpkg.com/htmx.org@2.0.2" defer></script>
 </head>
 <body>
-{{template "nav" .}}
+{{if .AuthedAdmin}}{{template "nav" .}}{{end}}
 <main>
 {{block "content" .}}{{end}}
 </main>
