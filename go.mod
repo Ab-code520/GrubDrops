@@ -8,7 +8,9 @@ require (
 	github.com/browserutils/kooky v0.2.9
 	github.com/chromedp/cdproto v0.0.0-20260427013145-5737772c319b
 	github.com/chromedp/chromedp v0.15.1
+	github.com/coreos/go-oidc/v3 v3.18.0
 	github.com/go-chi/chi/v5 v5.3.0
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/gorilla/websocket v1.5.3
 	github.com/justinas/nosurf v1.2.0
 	github.com/pressly/goose/v3 v3.27.1
@@ -16,6 +18,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.52.0
 	golang.org/x/net v0.55.0
+	golang.org/x/oauth2 v0.36.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.52.0

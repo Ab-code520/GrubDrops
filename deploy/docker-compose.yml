@@ -12,6 +12,21 @@ services:
       MINER_DB_PATH: /data/miner.db
       MINER_HTTP_ADDR: 0.0.0.0:8080
       MINER_BROWSER_URL: ${MINER_BROWSER_URL:-}
+      # Secure cookies: ON behind Traefik/HTTPS. The OIDC SameSite=Lax state
+      # cookie and the session cookie both need this to work over real HTTPS.
+      # Turn off only for plain-HTTP localhost.
+      MINER_SECURE_COOKIES: ${MINER_SECURE_COOKIES:-1}
+      # OIDC SSO (optional). All four mandatory vars must be set for SSO to
+      # turn on; absent = disabled, password login only. Redirect URL must be
+      # https://<your-traefik-host>/auth/oidc/callback and registered in the
+      # IdP. See README "Single sign-on (OIDC)".
+      GRUB_OIDC_ISSUER: ${GRUB_OIDC_ISSUER:-}
+      GRUB_OIDC_CLIENT_ID: ${GRUB_OIDC_CLIENT_ID:-}
+      GRUB_OIDC_CLIENT_SECRET: ${GRUB_OIDC_CLIENT_SECRET:-}
+      GRUB_OIDC_REDIRECT_URL: ${GRUB_OIDC_REDIRECT_URL:-}
+      GRUB_OIDC_PROVIDER_NAME: ${GRUB_OIDC_PROVIDER_NAME:-authentik}
+      GRUB_OIDC_ALLOWED_EMAILS: ${GRUB_OIDC_ALLOWED_EMAILS:-}
+      GRUB_OIDC_ALLOWED_GROUPS: ${GRUB_OIDC_ALLOWED_GROUPS:-}
     volumes:
       - ./data:/data
 

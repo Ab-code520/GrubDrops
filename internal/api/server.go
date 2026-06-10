@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	mlog "github.com/aalejandrofer/grubdrops/internal/log"
+	"github.com/aalejandrofer/grubdrops/internal/auth/oidc"
 	"github.com/aalejandrofer/grubdrops/internal/platform"
 	"github.com/aalejandrofer/grubdrops/internal/scheduler"
 	"github.com/aalejandrofer/grubdrops/internal/store"
@@ -69,6 +70,12 @@ type Deps struct {
 	Registrar        KickChannelRegistrar
 	SettingsStore    *store.Settings
 	OnSettingsUpdate func()
+	// OIDC is the configured single-sign-on provider. Nil or disabled means
+	// the SSO button is hidden and the /auth/oidc/* routes redirect to /login.
+	OIDC *oidc.Provider
+	// SecureCookies mirrors config.SecureCookies for the transient OIDC
+	// state cookie (the scs session cookie is configured in cmd/miner).
+	SecureCookies bool
 	// Notifier is the live Discord notifier, used by the /settings "send
 	// test" button. Nil disables the button.
 	Notifier Notifier
@@ -114,7 +121,19 @@ func NewRouter(d Deps) http.Handler {
 	}
 
 	setup := setupDeps{q: d.Q, t: d.Templates, sm: d.Session}
-	authH := authDeps{q: d.Q, t: d.Templates, sm: d.Session}
+	oidcEnabled := d.OIDC != nil && d.OIDC.Enabled()
+	oidcName := ""
+	if d.OIDC != nil {
+		oidcName = d.OIDC.Name()
+	}
+	authH := authDeps{q: d.Q, t: d.Templates, sm: d.Session, oidcEnabled: oidcEnabled, oidcProviderName: oidcName}
+
+	oidcH := oidcDeps{
+		p:      d.OIDC,
+		hs:     oidc.NewHandshakeStore(d.DB),
+		sm:     d.Session,
+		secure: d.SecureCookies,
+	}
 	startedAt := d.StartTime
 	if startedAt.IsZero() {
 		startedAt = time.Now()
@@ -150,6 +169,8 @@ func NewRouter(d Deps) http.Handler {
 	r.Method(http.MethodPost, "/setup", withSession(CSRF(http.HandlerFunc(setup.post))))
 	r.Method(http.MethodGet, "/login", withSession(CSRF(http.HandlerFunc(authH.loginGet))))
 	r.Method(http.MethodPost, "/login", withSession(CSRF(http.HandlerFunc(authH.loginPost))))
+	r.Method(http.MethodGet, "/auth/oidc/login", withSession(http.HandlerFunc(oidcH.loginRedirect)))
+	r.Method(http.MethodGet, "/auth/oidc/callback", withSession(http.HandlerFunc(oidcH.callback)))
 
 	// Authed area
 	authed := chi.NewRouter()
@@ -248,12 +269,18 @@ func NewRouter(d Deps) http.Handler {
 		browserURL:  d.BrowserURLDisplay,
 		gitCommit:   d.GitCommit,
 		version:     d.Version,
+		oidc:        d.OIDC,
 	}
 	dropsH := &dropsDeps{q: d.Q, t: d.Templates, reload: d.Reload, sessions: d.Sessions, registry: d.Registry}
 	historyH := &historyDeps{q: d.Q, ring: d.LogRing, t: d.Templates}
 
 	authed.Get("/settings", settingsH.get)
-	authed.Post("/settings", settingsH.post)
+	authed.Get("/settings/priority", settingsH.getPriority)
+	authed.Get("/settings/notifications", settingsH.getNotifications)
+	authed.Get("/settings/security", settingsH.getSecurity)
+	authed.Post("/settings", settingsH.postGeneral)
+	authed.Post("/settings/priority-mode", settingsH.postPriorityMode)
+	authed.Post("/settings/notifications", settingsH.postNotifications)
 	authed.Post("/settings/global-games", settingsH.globalGamesPost)
 	authed.Post("/settings/global-games/add", settingsH.globalGamesAdd)
 	authed.Post("/settings/password", settingsH.changePassword)

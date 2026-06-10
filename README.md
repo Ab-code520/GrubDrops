@@ -73,6 +73,29 @@ Everything is set through environment variables:
 | `MINER_HELPER_DIR` | `/helpers` | Where the baked cookie-helper binaries live. |
 | `MINER_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error`. |
 
+### Single sign-on (OIDC)
+
+Optional. Adds a "Sign in with …" button to the login page next to the admin
+password (the password stays as a fallback). Works with any OpenID Connect
+provider — authentik, Auth0, Keycloak, Google, Okta, Azure AD, … SSO turns on
+only when the first four variables are all set; discovery uses the issuer's
+`/.well-known/openid-configuration`.
+
+| Var | Required | Purpose |
+|-----|----------|---------|
+| `GRUB_OIDC_ISSUER` | yes | Issuer URL, e.g. `https://authentik.example.com/application/o/grubdrops/` |
+| `GRUB_OIDC_CLIENT_ID` | yes | OAuth client ID. |
+| `GRUB_OIDC_CLIENT_SECRET` | yes | OAuth client secret. |
+| `GRUB_OIDC_REDIRECT_URL` | yes | Must be `https://<your-host>/auth/oidc/callback`, registered with the IdP. |
+| `GRUB_OIDC_PROVIDER_NAME` | no | Button label (default `SSO`). |
+| `GRUB_OIDC_ALLOWED_EMAILS` | no | Comma-separated email allowlist. Empty = any IdP user. |
+| `GRUB_OIDC_ALLOWED_GROUPS` | no | Comma-separated required group(s) on the `groups` claim. |
+
+Anyone the configured issuer authenticates (and who passes the optional
+allowlists) is granted the single admin session. **With no allowlist set, any
+user the IdP can authenticate becomes admin** — scope membership in the IdP, or
+set an allowlist, on shared/multi-tenant providers.
+
 ## Deploy
 
 It ships as a `linux/amd64` container built from `deploy/Dockerfile.miner`. Build it, move the image to your host, and `docker compose up`. The image bakes in the cross-compiled cookie helpers (served from `/download/helper`). Keep `/data` (the SQLite file) across redeploys, put it behind a reverse proxy, and `/healthz` will tell you it's alive.

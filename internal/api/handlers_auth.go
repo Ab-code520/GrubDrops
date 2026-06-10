@@ -10,9 +10,11 @@ import (
 )
 
 type authDeps struct {
-	q  *gen.Queries
-	t  Renderer
-	sm *scs.SessionManager
+	q                *gen.Queries
+	t                Renderer
+	sm               *scs.SessionManager
+	oidcEnabled      bool
+	oidcProviderName string
 }
 
 func (d authDeps) loginGet(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +26,13 @@ func (d authDeps) loginGet(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
-	render(w, d.t, "login.html", templateData{CSRFToken: csrfToken(r)})
+	flash := d.sm.PopString(r.Context(), "flash")
+	render(w, d.t, "login.html", templateData{
+		CSRFToken:        csrfToken(r),
+		Flash:            flash,
+		OIDCEnabled:      d.oidcEnabled,
+		OIDCProviderName: d.oidcProviderName,
+	})
 }
 
 func (d authDeps) loginPost(w http.ResponseWriter, r *http.Request) {

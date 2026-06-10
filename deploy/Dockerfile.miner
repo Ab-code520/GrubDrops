@@ -1,14 +1,28 @@
+# syntax=docker/dockerfile:1
 FROM golang:1.26-alpine AS build
 WORKDIR /src
 RUN apk add --no-cache git ca-certificates
+
+# Module download cached across builds (only re-runs when go.mod/go.sum change).
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
 COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/grubdrops ./cmd/miner
+
+# Build the miner. The Go build cache + module cache are persisted via
+# BuildKit cache mounts, so incremental rebuilds only recompile changed
+# packages (template/CSS-only changes relink in seconds instead of minutes).
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/grubdrops ./cmd/miner
 
 # Cross-compile the downloadable Kick/Twitch cookie helper for the common
 # desktop targets, baked into the image and served at /download/helper.
-RUN set -eux; \
+# Shares the same caches, so unchanged helpers relink from cached objects.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    set -eux; \
     for spec in darwin/arm64/grubdrops-helper-macos-arm64 \
                 darwin/amd64/grubdrops-helper-macos-intel \
                 windows/amd64/grubdrops-helper-windows.exe \

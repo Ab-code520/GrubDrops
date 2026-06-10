@@ -18,6 +18,7 @@ import (
 
 	"github.com/aalejandrofer/grubdrops/internal/api"
 	"github.com/aalejandrofer/grubdrops/internal/auth/browser"
+	"github.com/aalejandrofer/grubdrops/internal/auth/oidc"
 	"github.com/aalejandrofer/grubdrops/internal/authcheck"
 	"github.com/aalejandrofer/grubdrops/internal/config"
 	"github.com/aalejandrofer/grubdrops/internal/discovery"
@@ -82,6 +83,30 @@ func run() error {
 	sm.Cookie.HttpOnly = true
 	sm.Cookie.SameSite = http.SameSiteStrictMode
 	sm.Cookie.Secure = cfg.SecureCookies
+
+	oidcProvider, oidcErr := oidc.New(ctx, oidc.Config{
+		Issuer:        cfg.OIDCIssuer,
+		ClientID:      cfg.OIDCClientID,
+		ClientSecret:  cfg.OIDCClientSecret,
+		RedirectURL:   cfg.OIDCRedirectURL,
+		ProviderName:  cfg.OIDCProviderName,
+		AllowedEmails: cfg.OIDCAllowedEmails,
+		AllowedGroups: cfg.OIDCAllowedGroups,
+	})
+	if oidcErr != nil {
+		// IdP unreachable at boot: log and continue with OIDC disabled so the
+		// miner still starts and password login keeps working.
+		logger.Warn("oidc disabled: discovery failed", "err", oidcErr)
+		oidcProvider, _ = oidc.New(ctx, oidc.Config{}) // disabled provider
+	}
+	if oidcProvider.Enabled() {
+		logger.Info("oidc enabled", "issuer", cfg.OIDCIssuer, "provider", oidcProvider.Name())
+		// Open-by-default footgun: with no allowlist, ANY user the IdP
+		// authenticates becomes admin. Warn so operators notice.
+		if len(cfg.OIDCAllowedEmails) == 0 && len(cfg.OIDCAllowedGroups) == 0 {
+			logger.Warn("oidc has no email/group allowlist: any user authenticated by the IdP will gain admin access")
+		}
+	}
 
 	registry := platform.NewRegistry()
 
@@ -386,6 +411,8 @@ func run() error {
 		BrowserURLDisplay: cfg.BrowserURL,
 		GitCommit:         os.Getenv("GIT_COMMIT"),
 		Version:           os.Getenv("MINER_VERSION"),
+		OIDC:              oidcProvider,
+		SecureCookies:     cfg.SecureCookies,
 	}
 
 	srv := &http.Server{
