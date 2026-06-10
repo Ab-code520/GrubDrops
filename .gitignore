@@ -46,3 +46,6 @@ out/
 .playwright-mcp/
 /tmp/
 .superpowers/
+
+# superpowers workflow artifacts (specs/plans/mockups) — keep local, out of repo
+docs/superpowers/
