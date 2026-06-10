@@ -16,6 +16,12 @@
         <button class="btn primary" type="submit">Sign in →</button>
       </div>
     </form>
+    {{if .OIDCEnabled}}
+    <div class="sso-row">
+      <div class="sso-divider"><span>or</span></div>
+      <a class="btn" href="/auth/oidc/login">Sign in with {{.OIDCProviderName}}</a>
+    </div>
+    {{end}}
   </div>
 </div>
 {{end}}

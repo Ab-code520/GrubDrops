@@ -18,6 +18,8 @@ type templateData struct {
 	Flash        string
 	Active       string // "dashboard" | "accounts" | "drops" | "settings" — for nav highlight
 	AccountsRows any    // optional: inline accounts table on settings page
+	OIDCEnabled      bool   // show the SSO button on the login page
+	OIDCProviderName string // SSO button label
 }
 
 func render(w http.ResponseWriter, t Renderer, name string, data templateData) {
