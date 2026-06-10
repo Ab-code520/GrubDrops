@@ -15,6 +15,16 @@ type Config struct {
 	SecureCookies     bool
 	BrowserURL        string
 	LogLevel          string
+
+	// OIDC single-sign-on (all optional; feature enabled only when issuer,
+	// client id, client secret, and redirect URL are all set).
+	OIDCIssuer        string
+	OIDCClientID      string
+	OIDCClientSecret  string
+	OIDCRedirectURL   string
+	OIDCProviderName  string
+	OIDCAllowedEmails []string
+	OIDCAllowedGroups []string
 }
 
 func Load() (Config, error) {
@@ -27,6 +37,13 @@ func Load() (Config, error) {
 		BrowserURL:        os.Getenv("MINER_BROWSER_URL"),
 		LogLevel:          strings.ToLower(getenv("MINER_LOG_LEVEL", "info")),
 	}
+	cfg.OIDCIssuer = os.Getenv("GRUB_OIDC_ISSUER")
+	cfg.OIDCClientID = os.Getenv("GRUB_OIDC_CLIENT_ID")
+	cfg.OIDCClientSecret = os.Getenv("GRUB_OIDC_CLIENT_SECRET")
+	cfg.OIDCRedirectURL = os.Getenv("GRUB_OIDC_REDIRECT_URL")
+	cfg.OIDCProviderName = getenv("GRUB_OIDC_PROVIDER_NAME", "SSO")
+	cfg.OIDCAllowedEmails = splitList(os.Getenv("GRUB_OIDC_ALLOWED_EMAILS"))
+	cfg.OIDCAllowedGroups = splitList(os.Getenv("GRUB_OIDC_ALLOWED_GROUPS"))
 	if strings.TrimSpace(cfg.MasterKey) == "" {
 		return Config{}, fmt.Errorf("MINER_MASTER_KEY is required")
 	}
@@ -46,4 +63,25 @@ func getenv(k, d string) string {
 		return v
 	}
 	return d
+}
+
+// OIDCEnabled reports whether all mandatory OIDC settings are present.
+func (c Config) OIDCEnabled() bool {
+	return c.OIDCIssuer != "" && c.OIDCClientID != "" &&
+		c.OIDCClientSecret != "" && c.OIDCRedirectURL != ""
+}
+
+// splitList parses a comma-separated env value into a trimmed, non-empty slice.
+func splitList(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }

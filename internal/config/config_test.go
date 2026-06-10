@@ -7,6 +7,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLoad_OIDCDisabledWhenUnset(t *testing.T) {
+	t.Setenv("MINER_MASTER_KEY", "k")
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.False(t, cfg.OIDCEnabled())
+}
+
+func TestLoad_OIDCEnabledWhenComplete(t *testing.T) {
+	t.Setenv("MINER_MASTER_KEY", "k")
+	t.Setenv("GRUB_OIDC_ISSUER", "https://idp.example.com/")
+	t.Setenv("GRUB_OIDC_CLIENT_ID", "cid")
+	t.Setenv("GRUB_OIDC_CLIENT_SECRET", "secret")
+	t.Setenv("GRUB_OIDC_REDIRECT_URL", "https://app.example.com/auth/oidc/callback")
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.True(t, cfg.OIDCEnabled())
+	require.Equal(t, "https://idp.example.com/", cfg.OIDCIssuer)
+	require.Equal(t, []string{"a@x.com", "b@y.com"}, splitList("a@x.com, b@y.com"))
+}
+
+func TestLoad_OIDCDisabledWhenPartial(t *testing.T) {
+	t.Setenv("MINER_MASTER_KEY", "k")
+	t.Setenv("GRUB_OIDC_ISSUER", "https://idp.example.com/")
+	// missing client id/secret/redirect
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.False(t, cfg.OIDCEnabled())
+}
+
+func TestSplitList(t *testing.T) {
+	require.Nil(t, splitList(""))
+	require.Equal(t, []string{"a", "b"}, splitList(" a , b "))
+}
+
 func TestLoad_RequiresMasterKey(t *testing.T) {
 	t.Setenv("MINER_MASTER_KEY", "")
 	_, err := Load()
