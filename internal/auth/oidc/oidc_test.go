@@ -93,3 +93,33 @@ func TestExchangeAndVerify_RejectsWrongKey(t *testing.T) {
 	_, err = p.verifier.Verify(context.Background(), raw)
 	require.Error(t, err)
 }
+
+func TestProviderGetters(t *testing.T) {
+	idp := newFakeIDP(t)
+	p, err := New(context.Background(), Config{
+		Issuer:        idp.srv.URL,
+		ClientID:      "test-client",
+		ClientSecret:  "test-secret",
+		RedirectURL:   "https://app.example.com/auth/oidc/callback",
+		ProviderName:  "authentik",
+		AllowedEmails: []string{" a@b.com ", "c@d.com"},
+		AllowedGroups: []string{" admins "},
+	})
+	require.NoError(t, err)
+	require.True(t, p.Enabled())
+	require.Equal(t, "authentik", p.Name())
+	require.Equal(t, idp.srv.URL, p.Issuer())
+	require.Equal(t, "https://app.example.com/auth/oidc/callback", p.RedirectURL())
+	require.Equal(t, []string{"a@b.com", "c@d.com"}, p.AllowedEmails())
+	require.Equal(t, []string{"admins"}, p.AllowedGroups())
+}
+
+func TestProviderGetters_Disabled(t *testing.T) {
+	p, err := New(context.Background(), Config{})
+	require.NoError(t, err)
+	require.False(t, p.Enabled())
+	require.Equal(t, "", p.Issuer())
+	require.Equal(t, "", p.RedirectURL())
+	require.Nil(t, p.AllowedEmails())
+	require.Nil(t, p.AllowedGroups())
+}

@@ -27,6 +27,7 @@ func (c Config) enabled() bool {
 // Provider is grubdrops' OIDC relying-party client.
 type Provider struct {
 	name          string
+	issuer        string
 	oauth         oauth2.Config
 	verifier      *gooidc.IDTokenVerifier
 	allowedEmails []string
@@ -40,6 +41,7 @@ type Provider struct {
 func New(ctx context.Context, cfg Config) (*Provider, error) {
 	p := &Provider{
 		name:          cfg.ProviderName,
+		issuer:        cfg.Issuer,
 		allowedEmails: trimAll(cfg.AllowedEmails),
 		allowedGroups: trimAll(cfg.AllowedGroups),
 	}
@@ -74,6 +76,18 @@ func (p *Provider) Enabled() bool { return p.verifier != nil }
 
 // Name is the display label for the login button.
 func (p *Provider) Name() string { return p.name }
+
+// Issuer returns the configured OIDC issuer URL.
+func (p *Provider) Issuer() string { return p.issuer }
+
+// RedirectURL returns the configured OAuth redirect (callback) URL.
+func (p *Provider) RedirectURL() string { return p.oauth.RedirectURL }
+
+// AllowedEmails returns the (trimmed) email allowlist; nil means no restriction.
+func (p *Provider) AllowedEmails() []string { return p.allowedEmails }
+
+// AllowedGroups returns the (trimmed) group allowlist; nil means no restriction.
+func (p *Provider) AllowedGroups() []string { return p.allowedGroups }
 
 // AuthCodeURL builds the IdP authorize URL with state, nonce, and PKCE.
 func (p *Provider) AuthCodeURL(state, nonce, challenge string) string {
