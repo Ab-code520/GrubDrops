@@ -2794,6 +2794,11 @@
 .auth-logo { display: block; width: 96px; height: 96px; margin: 4px auto 10px; }
 .auth-centered .login-row { text-align: left; }
 .auth-centered .login-row input::placeholder { color: var(--muted); }
+/* C: borderless, floats on the page, square corners */
+.auth-bare { border-color: transparent; background: transparent; padding-top: 10px; }
+.auth-bare .btn-sso,
+.auth-bare .btn-arrow,
+.auth-bare .login-row input { border-radius: 0; }
 
 .btn-sso {
   display: block;

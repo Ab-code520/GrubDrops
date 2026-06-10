@@ -4,13 +4,13 @@
 
 {{define "content"}}
 <div class="auth-wrap">
-  <div class="auth-card auth-centered">
+  <div class="auth-card auth-centered auth-bare">
     <img class="auth-logo" src="/static/img/icon-512.png" alt="GrubDrops" width="96" height="96">
     <h1 class="auth-name">GrubDrops</h1>
     {{if .Flash}}<div class="err">{{.Flash}}</div>{{end}}
 
     {{if .OIDCEnabled}}
-    <a class="btn-sso" href="/auth/oidc/login">→ Continue with SSO</a>
+    <a class="btn-sso" href="/auth/oidc/login">Continue with SSO</a>
     <div class="sso-divider"><span>or</span></div>
     {{end}}
 
