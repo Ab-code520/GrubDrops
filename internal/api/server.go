@@ -269,6 +269,7 @@ func NewRouter(d Deps) http.Handler {
 		browserURL:  d.BrowserURLDisplay,
 		gitCommit:   d.GitCommit,
 		version:     d.Version,
+		oidc:        d.OIDC,
 	}
 	dropsH := &dropsDeps{q: d.Q, t: d.Templates, reload: d.Reload, sessions: d.Sessions, registry: d.Registry}
 	historyH := &historyDeps{q: d.Q, ring: d.LogRing, t: d.Templates}

@@ -133,3 +133,47 @@ func TestNotifyTest_NoNotifierConfigured(t *testing.T) {
 		t.Fatalf("expected 'no notifier' message, got %q", rec.Body.String())
 	}
 }
+
+func TestSettings_SSOCard_Enabled(t *testing.T) {
+	tmpl, err := web.Templates()
+	if err != nil {
+		t.Fatalf("load templates: %v", err)
+	}
+	var buf bytes.Buffer
+	err = tmpl.ExecuteTemplate(&buf, "settings.html", templateData{
+		Page: settingsPageData{
+			OIDC: settingsOIDC{
+				Enabled:      true,
+				ProviderName: "authentik",
+				Issuer:       "https://auth.ryuzec.dev/application/o/grubdrops/",
+				CallbackURL:  "https://drops.ryuzec.dev/auth/oidc/callback",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("render settings: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{"Single sign-on", "authentik", "auth.ryuzec.dev", "drops.ryuzec.dev/auth/oidc/callback"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("settings missing %q", want)
+		}
+	}
+}
+
+func TestSettings_SSOCard_Disabled(t *testing.T) {
+	tmpl, err := web.Templates()
+	if err != nil {
+		t.Fatalf("load templates: %v", err)
+	}
+	var buf bytes.Buffer
+	err = tmpl.ExecuteTemplate(&buf, "settings.html", templateData{
+		Page: settingsPageData{OIDC: settingsOIDC{Enabled: false}},
+	})
+	if err != nil {
+		t.Fatalf("render settings: %v", err)
+	}
+	if !strings.Contains(buf.String(), "Not configured") {
+		t.Errorf("expected disabled SSO card to show 'Not configured'")
+	}
+}

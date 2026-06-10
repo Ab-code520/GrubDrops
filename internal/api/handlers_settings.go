@@ -12,6 +12,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 
 	"github.com/aalejandrofer/grubdrops/internal/auth"
+	"github.com/aalejandrofer/grubdrops/internal/auth/oidc"
 	"github.com/aalejandrofer/grubdrops/internal/gameslug"
 	"github.com/aalejandrofer/grubdrops/internal/scheduler"
 	"github.com/aalejandrofer/grubdrops/internal/store"
@@ -36,6 +37,9 @@ type settingsDeps struct {
 	browserURL  string
 	gitCommit   string
 	version     string
+	// oidc is the configured SSO provider, surfaced read-only on settings.
+	// Nil or disabled renders the "not configured" state.
+	oidc *oidc.Provider
 }
 
 type settingsAccountRow struct {
@@ -51,6 +55,15 @@ type settingsGameRow struct {
 	ID       string
 	Name     string
 	Selected bool
+}
+
+type settingsOIDC struct {
+	Enabled       bool
+	ProviderName  string
+	Issuer        string
+	CallbackURL   string
+	AllowedEmails []string
+	AllowedGroups []string
 }
 
 type settingsPageData struct {
@@ -79,6 +92,8 @@ type settingsPageData struct {
 	BrowserURL string
 	GitCommit  string
 	Version    string
+	// Read-only SSO status
+	OIDC settingsOIDC
 }
 
 func (d *settingsDeps) get(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +130,17 @@ func (d *settingsDeps) get(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	var ssoStatus settingsOIDC
+	if d.oidc != nil && d.oidc.Enabled() {
+		ssoStatus = settingsOIDC{
+			Enabled:       true,
+			ProviderName:  d.oidc.Name(),
+			Issuer:        d.oidc.Issuer(),
+			CallbackURL:   d.oidc.RedirectURL(),
+			AllowedEmails: d.oidc.AllowedEmails(),
+			AllowedGroups: d.oidc.AllowedGroups(),
+		}
+	}
 	render(w, d.t, "settings.html", templateData{
 		AuthedAdmin: true, CSRFToken: csrfToken(r), Active: "settings",
 		Page: settingsPageData{
@@ -138,6 +164,7 @@ func (d *settingsDeps) get(w http.ResponseWriter, r *http.Request) {
 			BrowserURL:           d.browserURL,
 			GitCommit:            d.gitCommit,
 			Version:              d.version,
+			OIDC:                 ssoStatus,
 		},
 		Flash: flash,
 	})

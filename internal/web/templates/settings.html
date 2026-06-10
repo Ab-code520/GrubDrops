@@ -151,6 +151,36 @@
     </section>
 
     <section class="settings-card">
+      <header class="section-h">
+        <h3>Single sign-on (SSO)</h3>
+        {{if .OIDC.Enabled}}
+          <span class="sso-status-pill on">● enabled</span>
+        {{else}}
+          <span class="sso-status-pill off">○ disabled</span>
+        {{end}}
+      </header>
+      {{if .OIDC.Enabled}}
+      <div class="kvlist">
+        <div class="kvrow"><span class="k">provider</span><span class="v">{{.OIDC.ProviderName}}</span></div>
+        <div class="kvrow"><span class="k">issuer</span><span class="v">{{.OIDC.Issuer}}</span></div>
+        <div class="kvrow"><span class="k">access</span><span class="v">
+          {{if or .OIDC.AllowedEmails .OIDC.AllowedGroups}}
+            {{range .OIDC.AllowedEmails}}{{.}} {{end}}{{range .OIDC.AllowedGroups}}@{{.}} {{end}}
+          {{else}}Any user authenticated by your identity provider{{end}}
+        </span></div>
+      </div>
+      <div class="kvrow" style="margin-top:10px;"><span class="k">callback</span></div>
+      <div class="copy-field">
+        <code id="sso-callback">{{.OIDC.CallbackURL}}</code>
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('sso-callback').textContent.trim())">copy</button>
+      </div>
+      <p class="hint" style="margin-top:10px;">Configured via <code>GRUB_OIDC_*</code> environment variables (read-only here).</p>
+      {{else}}
+      <p class="hint">Not configured — set the <code>GRUB_OIDC_*</code> environment variables to enable SSO. See the README "Single sign-on (OIDC)" section.</p>
+      {{end}}
+    </section>
+
+    <section class="settings-card">
       <header class="section-h"><h3>Master password</h3><span class="meta">Admin login</span></header>
       <form method="post" action="/settings/password" autocomplete="off">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
