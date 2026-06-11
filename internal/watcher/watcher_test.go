@@ -13,6 +13,32 @@ import (
 	"github.com/aalejandrofer/grubdrops/internal/platform/platformtest"
 )
 
+// TestShouldNotifyProgress_OnlyFiresOnIncrease guards against the Discord
+// spam bug: progress notifications must fire only when watch minutes actually
+// advance — never at 0, never repeatedly for an unchanged value (a Kick watch
+// stuck at 0/120 polled every ~60s previously spammed the channel each tick).
+func TestShouldNotifyProgress_OnlyFiresOnIncrease(t *testing.T) {
+	w := &Watcher{}
+	if w.shouldNotifyProgress(0) {
+		t.Fatal("0 minutes should never notify")
+	}
+	if w.shouldNotifyProgress(0) {
+		t.Fatal("repeated 0 must not notify (this was the spam)")
+	}
+	if !w.shouldNotifyProgress(5) {
+		t.Fatal("first real progress (5) should notify")
+	}
+	if w.shouldNotifyProgress(5) {
+		t.Fatal("unchanged 5 must not re-notify")
+	}
+	if !w.shouldNotifyProgress(10) {
+		t.Fatal("advance to 10 should notify")
+	}
+	if w.shouldNotifyProgress(10) {
+		t.Fatal("unchanged 10 must not re-notify")
+	}
+}
+
 type recordingNotifier struct {
 	mu     sync.Mutex
 	events []string

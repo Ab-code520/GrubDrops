@@ -107,7 +107,13 @@ type Watcher struct {
 	watchStartedAt  time.Time
 	lastPollAt      time.Time // last inventory/progress poll (for the "last poll" UI)
 	lastProgressMin int
-	tickCount       int // increments each tickWatch, used to throttle stream-live re-checks
+	// lastNotifiedProgressMin is the watch-minutes value last sent in a
+	// "progress" Discord notification. Progress notifications fire only when
+	// minutes advance past this — never at 0, never repeatedly for the same
+	// value — so a stalled watch (e.g. Kick stuck at 0/120, polled every ~60s)
+	// doesn't spam the channel each inventory tick. Reset on pickStream.
+	lastNotifiedProgressMin int
+	tickCount               int // increments each tickWatch, used to throttle stream-live re-checks
 	// noProgressTicks counts consecutive tickWatch calls where
 	// InventoryProgress returned NO row matching the current benefit ID.
 	// Reset to 0 on any match; on pickStream when starting a fresh watch.
@@ -1062,6 +1068,7 @@ func (w *Watcher) pickStream(ctx context.Context) error {
 	w.handle = &h
 	w.watchStartedAt = time.Now()
 	w.lastProgressMin = 0
+	w.lastNotifiedProgressMin = 0
 	w.noProgressTicks = 0
 	// Reset the tick counter so the beacon/inventory cadence (tickN==1
 	// fires immediately) aligns with the start of each watch session.
@@ -1246,11 +1253,29 @@ func (w *Watcher) tickWatch(ctx context.Context) error {
 	w.mu.Lock()
 	curMin := w.lastProgressMin
 	w.mu.Unlock()
-	_ = w.cfg.Notifier.Notify(ctx, "progress", w.notifyFields(map[string]any{
-		"cur_min": curMin,
-		"req_min": benefit.RequiredMinutes,
-	}))
+	// Only notify when watch minutes actually advanced — see shouldNotifyProgress.
+	// Stalled/zero-progress watches stay silent instead of spamming each tick.
+	if w.shouldNotifyProgress(curMin) {
+		_ = w.cfg.Notifier.Notify(ctx, "progress", w.notifyFields(map[string]any{
+			"cur_min": curMin,
+			"req_min": benefit.RequiredMinutes,
+		}))
+	}
 	return nil
+}
+
+// shouldNotifyProgress reports whether a "progress" notification should fire
+// for curMin, recording it when so. Fires only when minutes advance past the
+// last notified value, and never at 0 — preventing the per-tick Discord spam
+// a stuck-at-0 watch (notably Kick) otherwise produced.
+func (w *Watcher) shouldNotifyProgress(curMin int) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if curMin <= 0 || curMin <= w.lastNotifiedProgressMin {
+		return false
+	}
+	w.lastNotifiedProgressMin = curMin
+	return true
 }
 
 func (w *Watcher) claim(ctx context.Context) error {
