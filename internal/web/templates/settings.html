@@ -190,35 +190,40 @@
       <header class="section-h"><h3>Runtime</h3><span class="meta">Reload required for tick/discovery</span></header>
       <form method="post" action="/settings" id="settings-form">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-        <div class="settings-grid-2">
-          <label>Watcher tick interval (ms)
-            <input type="number" name="tick_interval_ms" value="{{.TickIntervalMs}}" min="100" max="60000">
-          </label>
-          <label>Discovery interval (seconds)
-            <input type="number" name="discovery_interval_sec" value="{{.DiscoveryIntervalSec}}" min="30" max="3600">
-          </label>
-        </div>
-        <div class="settings-grid-2">
-          <label>Heartbeats per minute
-            <input type="number" name="heartbeats_per_min" value="{{.HeartbeatsPerMin}}" min="1" max="60">
-            <span class="field-hint" style="margin:0;font-weight:400;">Watch-ping + progress-poll cycles per minute. 1 = every 60s (default); 2 = every 30s; 4 = every 15s.</span>
-          </label>
-        </div>
-        <div class="settings-grid-2">
-          <label>Log level
-            <select name="log_level">
+        <div class="kvedit">
+          <div class="row">
+            <span class="k">tick interval</span>
+            <span class="d">how often it <b>thinks</b> — the watcher loop pulse</span>
+            <span class="v"><input type="number" name="tick_interval_ms" value="{{.TickIntervalMs}}" min="100" max="60000"><span class="u">ms</span></span>
+          </div>
+          <div class="row">
+            <span class="k">heartbeats / min</span>
+            <span class="d">how often it <b>pings the platform</b> — watch-ping + progress poll · 1=60s 2=30s 4=15s</span>
+            <span class="v"><input type="number" name="heartbeats_per_min" value="{{.HeartbeatsPerMin}}" min="1" max="60"><span class="u">/min</span></span>
+          </div>
+          <div class="row">
+            <span class="k">discovery interval</span>
+            <span class="d">how often it <b>looks for new drops</b> — re-scans the campaign catalog</span>
+            <span class="v"><input type="number" name="discovery_interval_sec" value="{{.DiscoveryIntervalSec}}" min="30" max="3600"><span class="u">s</span></span>
+          </div>
+          <div class="row">
+            <span class="k">log level</span>
+            <span class="d">logging verbosity</span>
+            <span class="v"><select name="log_level">
               <option value="" {{if eq .LogLevel ""}}selected{{end}}>default ({{.LogLevelEnv}})</option>
               <option value="debug" {{if eq .LogLevel "debug"}}selected{{end}}>debug</option>
               <option value="info" {{if eq .LogLevel "info"}}selected{{end}}>info</option>
               <option value="warn" {{if eq .LogLevel "warn"}}selected{{end}}>warn</option>
               <option value="error" {{if eq .LogLevel "error"}}selected{{end}}>error</option>
-            </select>
-          </label>
-          <label>Log retention (days)
-            <input type="number" name="log_retention_days" value="{{.LogRetentionDays}}" min="1" max="365">
-          </label>
+            </select></span>
+          </div>
+          <div class="row">
+            <span class="k">log retention</span>
+            <span class="d">how long log history is kept</span>
+            <span class="v"><input type="number" name="log_retention_days" value="{{.LogRetentionDays}}" min="1" max="365"><span class="u">days</span></span>
+          </div>
         </div>
-        <div class="row">
+        <div class="row" style="margin-top:18px;">
           <a class="back-link" href="/">← back</a>
           <button class="btn primary" type="submit">Save →</button>
         </div>

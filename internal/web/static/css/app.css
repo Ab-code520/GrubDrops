@@ -2310,6 +2310,58 @@
   .kvlist .k { color: var(--muted); }
   .kvlist .v { color: var(--text); }
 
+  /* Editable STATUS-style rows: same dashed-leader table as .kvlist, but the
+     value is a compact inline input. Used for numeric/select settings so they
+     read like the read-only Status panel instead of full-width form boxes. */
+  .kvedit { font-family: 'JetBrains Mono', monospace; }
+  .kvedit .row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 13px;
+    border-bottom: 1px dashed var(--line);
+    padding: 15px 0;
+  }
+  .kvedit .row:last-child { border-bottom: none; }
+  .kvedit .k { color: var(--muted); white-space: nowrap; }
+  .kvedit .d {
+    flex: 1;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 11.5px;
+    line-height: 1.4;
+    color: #5f656d;
+  }
+  .kvedit .d b { color: var(--muted); font-weight: 600; }
+  .kvedit .v {
+    margin-left: auto;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex: 0 0 auto;
+  }
+  .kvedit .v input,
+  .kvedit .v select {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    text-align: right;
+    padding: 2px 2px 3px;
+    border-radius: 0;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .kvedit .v input { width: 3.6em; }
+  .kvedit .v input:focus,
+  .kvedit .v select:focus { border-bottom-color: var(--accent); background: transparent; }
+  .kvedit .v .u { color: var(--muted); font-size: 11px; min-width: 28px; }
+  @media (max-width: 560px) {
+    .kvedit .row { flex-wrap: wrap; gap: 4px 12px; }
+    .kvedit .d { flex-basis: 100%; order: 3; }
+  }
+
   /* Drag-reorder rank picker. Shared by per-account whitelist editor
      + Settings global priority list. */
   .rank-list {
@@ -2443,6 +2495,29 @@
   }
   .form-card input:focus, .form-card select:focus,
   .settings-card input:focus, .settings-card select:focus { border-bottom-color: var(--accent); background: var(--surface-2); }
+  /* Numeric inputs hold a handful of digits — don't stretch them to the full
+     column like text/URL fields. Keep them compact + left-aligned. */
+  .form-card input[type="number"],
+  .settings-card input[type="number"] {
+    width: 8.5em;
+    max-width: 100%;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  /* Helper text under settings fields (the rule above only covered .form-card).
+     Reset the label's uppercase/mono so hints read as normal prose. */
+  .settings-card .field-hint {
+    display: block;
+    margin-top: 7px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 11.5px;
+    line-height: 1.45;
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 400;
+    color: var(--muted);
+    max-width: 46ch;
+  }
+  .settings-card .field-hint b { color: var(--text); font-weight: 600; }
   .form-card .row,
   .settings-card .row {
     display: flex; justify-content: space-between; align-items: center;
