@@ -74,11 +74,13 @@ type settingsPageData struct {
 	LogLevelEnv          string
 	TickIntervalMs       int
 	DiscoveryIntervalSec int
+	HeartbeatsPerMin     int
 	PriorityMode         string // "ordered" | "ending_soonest"
 	NotifyClaim          bool
 	NotifyProgress       bool
 	NotifyAuth           bool
 	NotifyError          bool
+	ProgressNotifyStep   int // milestone % step for progress notifications (0 = off)
 
 	// Global priority list — used as fallback when an account has no
 	// per-account whitelist rows.
@@ -104,8 +106,10 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 	level, _ := d.s.LogLevel(ctx)
 	tick, _ := d.s.TickIntervalMs(ctx)
 	discIv, _ := d.s.DiscoveryIntervalSec(ctx)
+	hbPerMin, _ := d.s.HeartbeatsPerMin(ctx)
 	prio, _ := d.s.PriorityMode(ctx)
 	nc, np, na, ne := d.s.NotifyKinds(ctx)
+	progStep, _ := d.s.ProgressNotifyStepPct(ctx)
 
 	uptime := ""
 	if !d.startedAt.IsZero() {
@@ -151,6 +155,7 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 			LogLevelEnv:          d.logLevelEnv,
 			TickIntervalMs:       tick,
 			DiscoveryIntervalSec: discIv,
+			HeartbeatsPerMin:     hbPerMin,
 			PriorityMode:         prio,
 			GlobalGames:          globalGames,
 			AllGames:             allGames,
@@ -158,6 +163,7 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 			NotifyProgress:       np,
 			NotifyAuth:           na,
 			NotifyError:          ne,
+			ProgressNotifyStep:   progStep,
 			Uptime:               uptime,
 			GoVersion:            runtime.Version(),
 			Goroutines:           runtime.NumGoroutine(),
@@ -208,12 +214,20 @@ func (d *settingsDeps) postGeneral(w http.ResponseWriter, r *http.Request) {
 			_ = d.s.SetDiscoveryIntervalSec(ctx, n)
 		}
 	}
+	if v := r.FormValue("heartbeats_per_min"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			if cur, _ := d.s.HeartbeatsPerMin(ctx); cur != n {
+				intervalsChanged = true
+			}
+			_ = d.s.SetHeartbeatsPerMin(ctx, n)
+		}
+	}
 	if d.onUpdate != nil {
 		d.onUpdate()
 	}
 	msg := "settings saved"
 	if intervalsChanged {
-		msg = "settings saved — restart container to apply the new tick/discovery interval"
+		msg = "settings saved — reload watchers (or restart) to apply the new cadence"
 	}
 	d.sm.Put(ctx, "flash", msg)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
@@ -229,10 +243,25 @@ func (d *settingsDeps) postNotifications(w http.ResponseWriter, r *http.Request)
 	_ = d.s.SetNotifyAvatarURL(ctx, strings.TrimSpace(r.FormValue("notify_avatar_url")))
 	on := func(name string) bool { return r.FormValue(name) == "1" }
 	_ = d.s.SetNotifyKinds(ctx, on("notify_claim"), on("notify_progress"), on("notify_auth"), on("notify_error"))
+	stepChanged := false
+	if v := r.FormValue("progress_notify_step"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			if cur, _ := d.s.ProgressNotifyStepPct(ctx); cur != n {
+				stepChanged = true
+			}
+			_ = d.s.SetProgressNotifyStepPct(ctx, n)
+		}
+	}
 	if d.onUpdate != nil {
 		d.onUpdate()
 	}
-	d.sm.Put(ctx, "flash", "notifications saved")
+	msg := "notifications saved"
+	if stepChanged {
+		// The step is read by each watcher at build time, so it applies on
+		// the next scheduler reload, not live like the on/off toggles.
+		msg = "notifications saved — reload watchers to apply the progress milestone step"
+	}
+	d.sm.Put(ctx, "flash", msg)
 	http.Redirect(w, r, "/settings/notifications", http.StatusSeeOther)
 }
 

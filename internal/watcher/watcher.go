@@ -43,6 +43,16 @@ type Config struct {
 	Notifier     Notifier
 	TickInterval time.Duration
 
+	// HeartbeatsPerMin is how many watch-ping + progress-poll cycles run per
+	// minute. <1 is treated as 1 (every 60s, the default). The beacon and
+	// inventory cadence derive from this and TickInterval.
+	HeartbeatsPerMin int
+
+	// ProgressNotifyStepPct is the milestone granularity for "progress"
+	// Discord notifications: fire at 0% (start), each N%, and 100%. 0 disables
+	// progress notifications (claim event still covers completion).
+	ProgressNotifyStepPct int
+
 	// AllowGame returns true if a campaign whose Game string matches
 	// the account's whitelist should be considered for mining. When
 	// nil the watcher mines anything (legacy behaviour); production
@@ -107,13 +117,14 @@ type Watcher struct {
 	watchStartedAt  time.Time
 	lastPollAt      time.Time // last inventory/progress poll (for the "last poll" UI)
 	lastProgressMin int
-	// lastNotifiedProgressMin is the watch-minutes value last sent in a
-	// "progress" Discord notification. Progress notifications fire only when
-	// minutes advance past this — never at 0, never repeatedly for the same
-	// value — so a stalled watch (e.g. Kick stuck at 0/120, polled every ~60s)
-	// doesn't spam the channel each inventory tick. Reset on pickStream.
-	lastNotifiedProgressMin int
-	tickCount               int // increments each tickWatch, used to throttle stream-live re-checks
+	// lastNotifiedMilestone is the highest progress milestone-% already sent in
+	// a "progress" Discord notification (multiple of ProgressNotifyStepPct, or
+	// 100). A milestone only notifies when newly crossed, so a stalled watch
+	// (e.g. Kick stuck at 0/120, polled every ~60s) doesn't spam the channel
+	// each tick. Sentinel -1 so the 0% "started" milestone fires once. Reset on
+	// pickStream / New.
+	lastNotifiedMilestone int
+	tickCount             int // increments each tickWatch, used to throttle stream-live re-checks
 	// noProgressTicks counts consecutive tickWatch calls where
 	// InventoryProgress returned NO row matching the current benefit ID.
 	// Reset to 0 on any match; on pickStream when starting a fresh watch.
@@ -165,7 +176,7 @@ func New(cfg Config) *Watcher {
 	if cfg.Session.GameFilter == nil {
 		cfg.Session.GameFilter = cfg.AllowGame
 	}
-	w := &Watcher{cfg: cfg, state: StateIdle}
+	w := &Watcher{cfg: cfg, state: StateIdle, lastNotifiedMilestone: -1}
 	// Register PubSub hooks BEFORE the first ListActiveCampaigns call so
 	// the backend's lazy PubSub bootstrap picks them up. Backends that
 	// don't implement PubSubAware (Kick, mock) silently skip this.
@@ -570,15 +581,11 @@ var errIdle = errors.New("idle; recheck later")
 // the watcher's view and the persisted /drops view converge.
 const recheckInterval = 5 * time.Minute
 
-// Watch-loop network cadences. The state machine ticks every 500ms for
-// responsiveness, but the expensive gql calls are throttled to roughly
-// match DevilXD/TwitchDropsMiner so we don't flood gql.twitch.tv (which
-// is both rate-limited and bot-detected). Counted in 500ms ticks.
-const (
-	beaconEveryTicks    = 120 // ~60s — minute-watched beacon (DevilXD WATCH_INTERVAL)
-	liveCheckEveryTicks = 600 // ~5m — backstop re-probe; PubSub stream-down is the primary signal
-	inventoryEveryTicks = 120 // ~60s — poll drop progress (backstop; PubSub user-drop-events pushes progress in real time)
-)
+// Watch-loop network cadences are derived per-watcher from TickInterval and
+// HeartbeatsPerMin — the beacon (watch ping) and inventory poll both run on
+// heartbeatEveryTicks() (default once a minute, configurable), and the
+// stream-liveness backstop on liveCheckEveryTicks() (~5min). Throttled to
+// roughly match DevilXD/TwitchDropsMiner so we don't flood gql.twitch.tv.
 
 // vanishThreshold is how many consecutive INVENTORY POLLS must report
 // "no progress row for current benefit" before the watcher concludes
@@ -1068,7 +1075,7 @@ func (w *Watcher) pickStream(ctx context.Context) error {
 	w.handle = &h
 	w.watchStartedAt = time.Now()
 	w.lastProgressMin = 0
-	w.lastNotifiedProgressMin = 0
+	w.lastNotifiedMilestone = -1
 	w.noProgressTicks = 0
 	// Reset the tick counter so the beacon/inventory cadence (tickN==1
 	// fires immediately) aligns with the start of each watch session.
@@ -1099,7 +1106,7 @@ func (w *Watcher) tickWatch(ctx context.Context) error {
 	// first watch tick, then every beaconEveryTicks. The heartbeat error
 	// is also our cheapest stream-down signal, so we keep failing the
 	// tick when it errors.
-	if tickN == 1 || tickN%beaconEveryTicks == 0 {
+	if tickN == 1 || tickN%w.heartbeatEveryTicks() == 0 {
 		if err := w.cfg.Backend.Heartbeat(ctx, handle); err != nil {
 			if errors.Is(err, context.Canceled) || ctx.Err() != nil {
 				return fmt.Errorf("heartbeat: %w", err)
@@ -1117,7 +1124,7 @@ func (w *Watcher) tickWatch(ctx context.Context) error {
 	// accruing after a stream ends but the mutation keeps returning 200,
 	// so this active probe (plus PubSub video-playback) tells us when to
 	// swap channels.
-	if tickN%liveCheckEveryTicks == 0 {
+	if tickN%w.liveCheckEveryTicks() == 0 {
 		streams, err := w.cfg.Backend.ListEligibleChannels(ctx, w.cfg.Session, campaign)
 		if err == nil {
 			stillLive := false
@@ -1144,7 +1151,7 @@ func (w *Watcher) tickWatch(ctx context.Context) error {
 	// Drop-progress poll (~20s). Only the inventory ticks below touch
 	// gql; intermediate ticks just maintain the beacon/live-check above
 	// and return, keeping us off Twitch's rate limiter.
-	if tickN != 1 && tickN%inventoryEveryTicks != 0 {
+	if tickN != 1 && tickN%w.heartbeatEveryTicks() != 0 {
 		return nil
 	}
 
@@ -1175,6 +1182,9 @@ func (w *Watcher) tickWatch(ctx context.Context) error {
 			}
 			w.mu.Unlock()
 			if p.MinutesWatched >= benefit.RequiredMinutes {
+				// Fire the 100% progress milestone before handing off to the
+				// claim flow (which returns early, past the end-of-tick notify).
+				w.maybeNotifyProgress(ctx, p.MinutesWatched, benefit.RequiredMinutes)
 				slog.Info("watcher benefit complete, claiming", "kind", "claim", "account", w.cfg.AccountID, "benefit", benefit.ID, "benefit_name", benefit.Name, "instance", p.InstanceID, "channel", handle.Channel)
 				w.setState(ctx, StateClaiming)
 				return nil
@@ -1253,30 +1263,80 @@ func (w *Watcher) tickWatch(ctx context.Context) error {
 	w.mu.Lock()
 	curMin := w.lastProgressMin
 	w.mu.Unlock()
-	// Only notify when watch minutes actually advanced — see shouldNotifyProgress.
-	// Stalled/zero-progress watches stay silent instead of spamming each tick.
-	if w.shouldNotifyProgress(curMin) {
-		_ = w.cfg.Notifier.Notify(ctx, "progress", w.notifyFields(map[string]any{
-			"cur_min": curMin,
-			"req_min": benefit.RequiredMinutes,
-		}))
-	}
+	w.maybeNotifyProgress(ctx, curMin, benefit.RequiredMinutes)
 	return nil
 }
 
+// maybeNotifyProgress emits a "progress" Discord notification when curMin
+// crosses a new milestone (see shouldNotifyProgress).
+func (w *Watcher) maybeNotifyProgress(ctx context.Context, curMin, reqMin int) {
+	if w.shouldNotifyProgress(curMin, reqMin) {
+		_ = w.cfg.Notifier.Notify(ctx, "progress", w.notifyFields(map[string]any{
+			"cur_min": curMin,
+			"req_min": reqMin,
+		}))
+	}
+}
+
 // shouldNotifyProgress reports whether a "progress" notification should fire
-// for curMin, recording it when so. Fires only when minutes advance past the
-// last notified value, and never at 0 — preventing the per-tick Discord spam
-// a stuck-at-0 watch (notably Kick) otherwise produced.
-func (w *Watcher) shouldNotifyProgress(curMin int) bool {
+// for curMin, recording the milestone when so. Notifications land at 0%
+// (started), each ProgressNotifyStepPct%, and 100% — each at most once per
+// watch — so a stalled watch (notably Kick stuck at 0/120, polled every ~60s)
+// doesn't spam the channel each tick. Step 0 disables progress notifications.
+func (w *Watcher) shouldNotifyProgress(curMin, reqMin int) bool {
+	step := w.cfg.ProgressNotifyStepPct
+	if step <= 0 {
+		return false // progress notifications disabled
+	}
+	if step > 100 {
+		step = 100
+	}
+	pct := 0
+	if reqMin > 0 {
+		pct = curMin * 100 / reqMin
+	}
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	milestone := (pct / step) * step // highest step-multiple at or below pct
+	if pct >= 100 {
+		milestone = 100
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if curMin <= 0 || curMin <= w.lastNotifiedProgressMin {
-		return false
+	if milestone > w.lastNotifiedMilestone {
+		w.lastNotifiedMilestone = milestone
+		return true
 	}
-	w.lastNotifiedProgressMin = curMin
-	return true
+	return false
 }
+
+// baseHeartbeatTicks is one heartbeat per minute at the default 500ms tick
+// (120 × 500ms = 60s — the historical beacon/inventory cadence). The actual
+// cadence scales this by HeartbeatsPerMin.
+const baseHeartbeatTicks = 120
+
+// heartbeatEveryTicks is the tick cadence for the watch-ping beacon and the
+// progress poll, scaled from HeartbeatsPerMin (default 1 = once a minute;
+// 2 = every 30s; 4 = every 15s, at the default 500ms tick).
+func (w *Watcher) heartbeatEveryTicks() int {
+	h := w.cfg.HeartbeatsPerMin
+	if h < 1 {
+		h = 1
+	}
+	n := baseHeartbeatTicks / h
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+// liveCheckEveryTicks is the backstop stream-liveness re-probe cadence (~5min
+// at the default 500ms tick).
+func (w *Watcher) liveCheckEveryTicks() int { return 600 }
 
 func (w *Watcher) claim(ctx context.Context) error {
 	w.mu.Lock()

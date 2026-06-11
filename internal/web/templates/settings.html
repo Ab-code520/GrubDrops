@@ -110,6 +110,10 @@
           <label class="cb"><input type="checkbox" name="notify_auth" value="1" {{if .NotifyAuth}}checked{{end}}> auth</label>
           <label class="cb"><input type="checkbox" name="notify_error" value="1" {{if .NotifyError}}checked{{end}}> errors</label>
         </div>
+        <label>Progress milestone step (%)
+          <input type="number" name="progress_notify_step" value="{{.ProgressNotifyStep}}" min="0" max="100" step="5">
+          <span class="field-hint" style="margin:0;font-weight:400;">When "progress" is on, notify at 0% (start), every N%, and 100%. 50 = start/50%/100%. 0 = off (claims only). Applies on watcher reload.</span>
+        </label>
         <div class="row" style="margin-top:10px;align-items:center;gap:12px;">
           <button class="btn" type="button"
             hx-post="/settings/notify-test"
@@ -192,6 +196,12 @@
           </label>
           <label>Discovery interval (seconds)
             <input type="number" name="discovery_interval_sec" value="{{.DiscoveryIntervalSec}}" min="30" max="3600">
+          </label>
+        </div>
+        <div class="settings-grid-2">
+          <label>Heartbeats per minute
+            <input type="number" name="heartbeats_per_min" value="{{.HeartbeatsPerMin}}" min="1" max="60">
+            <span class="field-hint" style="margin:0;font-weight:400;">Watch-ping + progress-poll cycles per minute. 1 = every 60s (default); 2 = every 30s; 4 = every 15s.</span>
           </label>
         </div>
         <div class="settings-grid-2">

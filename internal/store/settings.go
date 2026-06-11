@@ -16,10 +16,12 @@ const (
 	keyLogLevel         = "settings:log_level"
 	keyTickIntervalMs   = "settings:tick_interval_ms"
 	keyDiscoveryIntvSec = "settings:discovery_interval_sec"
+	keyHeartbeatsPerMin = "settings:heartbeats_per_min"
 	keyNotifyClaim      = "settings:notify_claim"
 	keyNotifyProgress   = "settings:notify_progress"
 	keyNotifyAuth       = "settings:notify_auth"
 	keyNotifyError      = "settings:notify_error"
+	keyNotifyProgStep   = "settings:notify_progress_step_pct"
 	keyPriorityMode     = "settings:priority_mode"
 )
 
@@ -136,6 +138,50 @@ func (s *Settings) DiscoveryIntervalSec(ctx context.Context) (int, error) {
 
 func (s *Settings) SetDiscoveryIntervalSec(ctx context.Context, sec int) error {
 	return s.setString(ctx, keyDiscoveryIntvSec, strconv.Itoa(sec))
+}
+
+// HeartbeatsPerMin is how many watch-ping + progress-poll cycles the watcher
+// runs per minute (default 1 = every 60s). Higher = more frequent pings,
+// useful for experimenting with Kick accrual. Clamped to a sane range.
+func (s *Settings) HeartbeatsPerMin(ctx context.Context) (int, error) {
+	raw, err := s.getString(ctx, keyHeartbeatsPerMin)
+	if err != nil || raw == "" {
+		return 1, err
+	}
+	n, _ := strconv.Atoi(raw)
+	if n < 1 {
+		return 1, nil
+	}
+	if n > 60 {
+		return 60, nil
+	}
+	return n, nil
+}
+
+func (s *Settings) SetHeartbeatsPerMin(ctx context.Context, n int) error {
+	return s.setString(ctx, keyHeartbeatsPerMin, strconv.Itoa(n))
+}
+
+// ProgressNotifyStepPct is the milestone granularity for Discord progress
+// notifications: fire at 0% (start), every N%, and 100%. Default 50 (so
+// start/50%/100%). 0 disables progress notifications entirely (claim only).
+func (s *Settings) ProgressNotifyStepPct(ctx context.Context) (int, error) {
+	raw, err := s.getString(ctx, keyNotifyProgStep)
+	if err != nil || raw == "" {
+		return 50, err
+	}
+	n, _ := strconv.Atoi(raw)
+	if n < 0 {
+		return 0, nil
+	}
+	if n > 100 {
+		return 100, nil
+	}
+	return n, nil
+}
+
+func (s *Settings) SetProgressNotifyStepPct(ctx context.Context, pct int) error {
+	return s.setString(ctx, keyNotifyProgStep, strconv.Itoa(pct))
 }
 
 // NotifyKinds returns the boolean toggles for each Discord

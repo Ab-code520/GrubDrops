@@ -13,29 +13,48 @@ import (
 	"github.com/aalejandrofer/grubdrops/internal/platform/platformtest"
 )
 
-// TestShouldNotifyProgress_OnlyFiresOnIncrease guards against the Discord
-// spam bug: progress notifications must fire only when watch minutes actually
-// advance — never at 0, never repeatedly for an unchanged value (a Kick watch
-// stuck at 0/120 polled every ~60s previously spammed the channel each tick).
-func TestShouldNotifyProgress_OnlyFiresOnIncrease(t *testing.T) {
-	w := &Watcher{}
-	if w.shouldNotifyProgress(0) {
-		t.Fatal("0 minutes should never notify")
+// TestShouldNotifyProgress_MilestoneSteps verifies progress notifications land
+// only on milestone crossings (0% start, each step%, 100%) — never repeatedly
+// for the same milestone, which was the Discord spam (Kick stuck at 0/120
+// polled every ~60s). Step 0 disables progress notifications entirely.
+func TestShouldNotifyProgress_MilestoneSteps(t *testing.T) {
+	const req = 120
+	w := &Watcher{lastNotifiedMilestone: -1}
+	w.cfg.ProgressNotifyStepPct = 50
+
+	if !w.shouldNotifyProgress(0, req) {
+		t.Fatal("0% (start) should notify once")
 	}
-	if w.shouldNotifyProgress(0) {
-		t.Fatal("repeated 0 must not notify (this was the spam)")
+	if w.shouldNotifyProgress(0, req) {
+		t.Fatal("repeated 0% must not re-notify (this was the spam)")
 	}
-	if !w.shouldNotifyProgress(5) {
-		t.Fatal("first real progress (5) should notify")
+	if w.shouldNotifyProgress(30, req) { // 25%
+		t.Fatal("25% should not notify with a 50% step")
 	}
-	if w.shouldNotifyProgress(5) {
-		t.Fatal("unchanged 5 must not re-notify")
+	if !w.shouldNotifyProgress(60, req) { // 50%
+		t.Fatal("50% should notify")
 	}
-	if !w.shouldNotifyProgress(10) {
-		t.Fatal("advance to 10 should notify")
+	if w.shouldNotifyProgress(60, req) {
+		t.Fatal("repeated 50% must not re-notify")
 	}
-	if w.shouldNotifyProgress(10) {
-		t.Fatal("unchanged 10 must not re-notify")
+	if w.shouldNotifyProgress(90, req) { // 75%
+		t.Fatal("75% should not notify with a 50% step")
+	}
+	if !w.shouldNotifyProgress(120, req) { // 100%
+		t.Fatal("100% should notify")
+	}
+	if w.shouldNotifyProgress(130, req) { // capped at 100%
+		t.Fatal("past 100% must not re-notify")
+	}
+}
+
+func TestShouldNotifyProgress_StepZeroDisables(t *testing.T) {
+	w := &Watcher{lastNotifiedMilestone: -1}
+	w.cfg.ProgressNotifyStepPct = 0
+	for _, m := range []int{0, 60, 120} {
+		if w.shouldNotifyProgress(m, 120) {
+			t.Fatalf("step 0 disables progress notifications; fired at %d", m)
+		}
 	}
 }
 

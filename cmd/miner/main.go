@@ -299,6 +299,12 @@ func run() error {
 		// the entry; the next Reload picks up changes.
 		priorityMode, _ := settingsStore.PriorityMode(ctx)
 
+		// Runtime cadence + progress-notify granularity — read per build (per
+		// Reload) so saving on /settings + reloading takes effect.
+		tickMs, _ := settingsStore.TickIntervalMs(ctx)
+		heartbeatsPerMin, _ := settingsStore.HeartbeatsPerMin(ctx)
+		progressStep, _ := settingsStore.ProgressNotifyStepPct(ctx)
+
 		// Manual "I've linked it" overrides — campaign ids the user asserted
 		// are account-linked. Loaded per build (per Reload) so toggling +
 		// reloading takes effect. See ForceLinked in watcher.Config.
@@ -308,8 +314,10 @@ func run() error {
 		w := watcher.New(watcher.Config{
 			AccountID: a.ID, AccountLabel: acctLabel, Platform: a.Platform,
 			Backend: b, Session: sess,
-			Notifier: notifier, TickInterval: 500 * time.Millisecond,
-			AllowGame: allow, GameRank: rank,
+			Notifier: notifier, TickInterval: time.Duration(tickMs) * time.Millisecond,
+			HeartbeatsPerMin:      heartbeatsPerMin,
+			ProgressNotifyStepPct: progressStep,
+			AllowGame:             allow, GameRank: rank,
 			PriorityMode:  priorityMode,
 			Persister:     campaignPersister,
 			ClaimRecorder: claimRecorder,
