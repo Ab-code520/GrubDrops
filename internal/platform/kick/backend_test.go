@@ -81,6 +81,31 @@ func TestKickBackend_ListActiveCampaigns_MapsAndFilters(t *testing.T) {
 	assert.Equal(t, "Rust", only[0].Game)
 }
 
+// Kick exposes no per-campaign "is the external account linked" signal (unlike
+// Twitch). Deriving link state from /drops/progress deadlocks: progress only
+// appears after watch time, watch time is blocked until "linked", "linked" is
+// read from progress. So a connect_url campaign the account has no progress for
+// must be treated as OPTIMISTICALLY linked (mine anyway) rather than blocked.
+func TestKickBackend_ListActiveCampaigns_ConnectURLOptimisticallyLinked(t *testing.T) {
+	f := &fakeDoer{resp: map[string]fakeResp{
+		"https://web.kick.com/api/v1/drops/campaigns": {200, `{"data":[
+			{"id":"c-rust","game":"Rust","name":"Rust Drops","status":"active",
+			 "connect_url":"https://kick.com/connect/steam",
+			 "rewards":[{"id":"ben1","name":"Crate","required_minutes":60}]}
+		]}`},
+		// No progress yet (freshly linked, never watched) — the old code read
+		// this as "not linked" and blocked mining.
+		"https://web.kick.com/api/v1/drops/progress": {200, `{"data":[]}`},
+	}}
+	b := withFake(f)
+
+	camps, err := b.ListActiveCampaigns(context.Background(), sess("acc1"))
+	require.NoError(t, err)
+	require.Len(t, camps, 1)
+	assert.True(t, camps[0].AccountLinked, "connect_url campaign with no progress should be optimistically linked (mineable)")
+	assert.Equal(t, "https://kick.com/connect/steam", camps[0].AccountLinkURL, "connect URL still surfaced for the user")
+}
+
 func TestKickBackend_ListActiveCampaigns_DefaultRequiredMinutes(t *testing.T) {
 	f := &fakeDoer{resp: map[string]fakeResp{
 		"https://web.kick.com/api/v1/drops/campaigns": {200, `{"data":[

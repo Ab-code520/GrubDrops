@@ -255,30 +255,6 @@ func (a *api) Progress(ctx context.Context, sess platform.Session) ([]platform.P
 	return out, nil
 }
 
-// ParticipatingCampaignIDs returns the set of campaign ids the account is
-// enrolled in (from /drops/progress). 403 (not enrolled in any) → empty set.
-// Used to decide which connect_url campaigns the account is actually linked to.
-func (a *api) ParticipatingCampaignIDs(ctx context.Context, sess platform.Session) (map[string]bool, error) {
-	body, status, err := a.d.do(ctx, sess, http.MethodGet, dropsBase+"/api/v1/drops/progress", nil)
-	if err != nil {
-		return nil, err
-	}
-	out := map[string]bool{}
-	if status == 403 {
-		return out, nil // not enrolled in anything
-	}
-	if status != 200 {
-		return out, fmt.Errorf("drops progress: status %d", status)
-	}
-	items, _ := asList(body, "data", "progress", "drops")
-	for _, m := range items {
-		if id := mstr(m, "campaign_id", "campaignId", "campaign"); id != "" {
-			out[id] = true
-		}
-	}
-	return out, nil
-}
-
 // ---- tolerant JSON helpers -----------------------------------------------
 
 // asList extracts a list of objects from a response that may be a bare array or
