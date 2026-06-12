@@ -185,6 +185,17 @@ type Watcher struct {
 	// duplicating the backend call.
 	lastDiscovery   []platform.Campaign
 	lastDiscoveryAt time.Time
+
+	// notifiedSwept dedupes the per-poll multi-reward sweep
+	// (CompletedSweeper / Kick) so each swept sibling reward fires its
+	// "claim" Discord notification exactly once over the watcher's
+	// lifetime. SweepCompletedClaims returns only freshly-claimed rewards
+	// per call (it skips already-claimed rows), so a clean run wouldn't
+	// repeat — but a claim-POST-succeeded-yet-progress-not-yet-updated
+	// race could resurface a reward on the next poll, and this set guards
+	// against the resulting double-notify. Keyed by reward Title (the only
+	// stable identifier ClaimedReward carries). Lazily allocated.
+	notifiedSwept map[string]struct{}
 }
 
 func New(cfg Config) *Watcher {
@@ -1261,6 +1272,12 @@ func (w *Watcher) tickWatch(ctx context.Context) error {
 				// (it has the proper benefit id once claimed flips true on the
 				// next discovery cycle); this is just the operator-visible log.
 				slog.Info("watcher swept completed reward", "kind", "claim", "account", w.cfg.AccountID, "title", cr.Title)
+				// Fire the same "claim" Discord notification the
+				// benefit-complete path uses for the actively-mined drop, so
+				// swept sibling rewards aren't silent. notifySwept skips the
+				// currentBenefit (which the StateClaiming flow notifies) and
+				// dedupes across polls.
+				w.notifySwept(ctx, cr)
 			}
 		}
 	}
@@ -1499,6 +1516,49 @@ func everyTicks(every, tick, def time.Duration) int {
 		n = 1
 	}
 	return n
+}
+
+// notifySwept fires the "claim" Discord notification for a reward picked up
+// by the multi-reward sweep (CompletedSweeper / Kick), reusing the exact
+// event + field shape of the benefit-complete claim path so the embed
+// (game / platform / title / account) matches. The notify_claim setting is
+// honored downstream by the Notifier implementation, identical to claim().
+//
+// It skips the actively-mined currentBenefit: the sweep can surface the same
+// reward the StateClaiming flow is about to claim+notify, and we must not
+// double-notify it. ClaimedReward carries no ID, so the match is by Title
+// against currentBenefit.Name. It also dedupes by Title across polls via
+// notifiedSwept so a reward that resurfaces (claim POST succeeded but the
+// next progressDetail hasn't flipped claimed:true yet) notifies only once.
+func (w *Watcher) notifySwept(ctx context.Context, cr platform.ClaimedReward) {
+	if cr.Title == "" {
+		return
+	}
+	w.mu.Lock()
+	// The benefit-complete path owns the currentBenefit's claim notify.
+	if w.currentBenefit != nil && w.currentBenefit.Name == cr.Title {
+		w.mu.Unlock()
+		return
+	}
+	if _, done := w.notifiedSwept[cr.Title]; done {
+		w.mu.Unlock()
+		return
+	}
+	if w.notifiedSwept == nil {
+		w.notifiedSwept = make(map[string]struct{})
+	}
+	w.notifiedSwept[cr.Title] = struct{}{}
+	w.mu.Unlock()
+
+	// Same event ("claim") and fields the benefit-complete path emits, but
+	// keyed to the swept reward rather than currentBenefit. game falls back
+	// to the ClaimedReward's Game when notifyFields' currentCampaign doesn't
+	// match the swept sibling's campaign.
+	extra := map[string]any{"drop": cr.Title}
+	if cr.Game != "" {
+		extra["game"] = cr.Game
+	}
+	_ = w.cfg.Notifier.Notify(ctx, "claim", w.notifyFields(extra))
 }
 
 func (w *Watcher) claim(ctx context.Context) error {
