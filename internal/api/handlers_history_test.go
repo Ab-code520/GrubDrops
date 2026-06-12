@@ -32,12 +32,43 @@ func TestRewardClaimsFromRing_FiltersTitlelessEntry(t *testing.T) {
 		}},
 	}
 
-	got := rewardClaimsFromRing(lines, map[string]string{"acc1": "@nori"})
+	got := rewardClaimsFromRing(lines, map[string]string{"acc1": "@nori"}, map[string]string{"acc1": "kick"})
 
 	assert.Len(t, got, 1, "only the title-bearing entry should survive")
 	assert.Equal(t, "Kick + Rust Wallpaper Pattern", got[0].Title)
 	assert.Equal(t, "", got[0].Game, "Kick reward has no game")
 	assert.Equal(t, "@nori", got[0].Account)
+}
+
+// A reward claim owned by a Kick account must render Platform "kick" so
+// the template colors the account label green, not Twitch purple. A
+// Twitch-owned claim stays "twitch", and an account with no resolvable
+// platform falls back to "twitch" (the old default).
+func TestRewardClaimsFromRing_PlatformFromAccount(t *testing.T) {
+	ts := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	lines := []mlog.LogLine{
+		{TS: ts, Kind: "claim", Fields: map[string]any{
+			"account": "acc_kick", "title": "Kick + Rust Wallpaper Logo",
+		}},
+		{TS: ts, Kind: "claim", Fields: map[string]any{
+			"account": "acc_twitch", "title": "Twitch + Rust Crate",
+		}},
+		{TS: ts, Kind: "claim", Fields: map[string]any{
+			"account": "acc_unknown", "title": "Orphan Reward",
+		}},
+	}
+	platformByID := map[string]string{"acc_kick": "kick", "acc_twitch": "twitch"}
+
+	got := rewardClaimsFromRing(lines, nil, platformByID)
+
+	assert.Len(t, got, 3)
+	byTitle := map[string]string{}
+	for _, c := range got {
+		byTitle[c.Title] = c.Platform
+	}
+	assert.Equal(t, "kick", byTitle["Kick + Rust Wallpaper Logo"], "Kick account reward must be kick")
+	assert.Equal(t, "twitch", byTitle["Twitch + Rust Crate"], "Twitch account reward stays twitch")
+	assert.Equal(t, "twitch", byTitle["Orphan Reward"], "unresolved account falls back to twitch")
 }
 
 // Non-claim ring entries are ignored.
@@ -46,7 +77,7 @@ func TestRewardClaimsFromRing_SkipsNonClaimKinds(t *testing.T) {
 		{Kind: "progress", Fields: map[string]any{"title": "ignored"}},
 		{Kind: "discovery", Fields: map[string]any{"title": "ignored"}},
 	}
-	assert.Empty(t, rewardClaimsFromRing(lines, nil))
+	assert.Empty(t, rewardClaimsFromRing(lines, nil, nil))
 }
 
 // The watcher's sweep + benefit-complete double-emit (same account,

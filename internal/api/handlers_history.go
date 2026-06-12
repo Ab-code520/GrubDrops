@@ -47,11 +47,13 @@ func (d *historyDeps) get(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	page := historyPage{}
 
-	// Accounts label lookup for the events feed.
+	// Accounts label + platform lookup for the events/claims feeds.
 	labelByID := map[string]string{}
+	platformByID := map[string]string{}
 	if accs, err := d.q.ListAllAccounts(ctx); err == nil {
 		for _, a := range accs {
 			labelByID[a.ID] = a.DisplayName
+			platformByID[a.ID] = a.Platform
 		}
 	}
 
@@ -77,7 +79,7 @@ func (d *historyDeps) get(w http.ResponseWriter, r *http.Request) {
 	// Ring-buffered reward claims (no benefit_id, so they don't reach
 	// the claims table). Walk the ring for kind=claim entries.
 	if d.ring != nil {
-		page.Claims = append(page.Claims, rewardClaimsFromRing(d.ring.Snapshot(), labelByID)...)
+		page.Claims = append(page.Claims, rewardClaimsFromRing(d.ring.Snapshot(), labelByID, platformByID)...)
 	}
 
 	// Dedupe — a single reward claim is double-emitted by the watcher
@@ -129,7 +131,7 @@ func (d *historyDeps) get(w http.ResponseWriter, r *http.Request) {
 // the title-bearing entry is a renderable reward row — the other would
 // render "reward · — · —", so we drop any entry without a non-empty
 // title. A legitimate Kick reward has no game, so game is NOT required.
-func rewardClaimsFromRing(lines []mlog.LogLine, labelByID map[string]string) []historyClaim {
+func rewardClaimsFromRing(lines []mlog.LogLine, labelByID, platformByID map[string]string) []historyClaim {
 	var out []historyClaim
 	for _, l := range lines {
 		if l.Kind != "claim" {
@@ -146,9 +148,17 @@ func rewardClaimsFromRing(lines []mlog.LogLine, labelByID map[string]string) []h
 		if label == "" {
 			label = acc
 		}
+		// Derive platform from the owning account — Kick reward claims
+		// now flow through the same ring as Twitch ones, so we can no
+		// longer assume "twitch". Fall back to "twitch" when the account
+		// (or its platform) can't be resolved, preserving old behavior.
+		platform := platformByID[acc]
+		if platform == "" {
+			platform = "twitch"
+		}
 		out = append(out, historyClaim{
 			When:     l.TS.UTC().Format("2006-01-02 15:04"),
-			Platform: "twitch", // reward reaper is Twitch-only
+			Platform: platform,
 			Game:     game,
 			Title:    title,
 			Account:  label,
