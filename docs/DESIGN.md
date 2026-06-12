@@ -35,7 +35,7 @@ never hard-code colors.
 - **Section labels / kicker / button labels**: JetBrains Mono, 10–11px,
   uppercase, letter-spacing ~0.14–0.18em, `--muted`.
 - **Body / tabular data**: JetBrains Mono.
-- Account names render the **display Label**, not the `@username`.
+- Account names render the **display name**, not the `@login`.
 
 ## Page skeleton
 
@@ -175,7 +175,7 @@ open state on swap.
 - ❌ inline `<style>` blocks or inline font/color on chips/headings
 - ❌ hard-coded colors — always `var(--…)`
 - ❌ polling < 10s
-- ❌ showing `@username` where the display Label is meaningful
+- ❌ showing `@login` where the display name is meaningful
 
 ## Adding a new page
 

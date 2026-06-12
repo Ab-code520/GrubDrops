@@ -68,7 +68,7 @@ services:
       # lets the miner start/stop browser sidecars on demand
       - /var/run/docker.sock:/var/run/docker.sock
 
-  # one per Kick account; name must be grubdrops-browser-<username-slug>
+  # one per Kick account; name must be grubdrops-browser-<display-name-slug>
   grubdrops-browser-myuser:
     image: ghcr.io/aalejandrofer/grubdrops-browser:latest
     container_name: grubdrops-browser-myuser
