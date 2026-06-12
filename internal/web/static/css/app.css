@@ -2311,25 +2311,24 @@
   .kvlist .v { color: var(--text); }
 
   /* Editable STATUS-style rows: same dashed-leader table as .kvlist, but the
-     value is a compact inline input. Used for numeric/select settings so they
-     read like the read-only Status panel instead of full-width form boxes. */
-  .kvedit { font-family: 'JetBrains Mono', monospace; }
+     value is a compact inline input. Matches the read-only Status panel's
+     density (12px mono, tight rows) instead of full-width form boxes. */
+  .kvedit { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
   .kvedit .row {
     display: flex;
     align-items: center;
-    gap: 16px;
-    font-size: 13px;
+    gap: 14px;
     border-bottom: 1px dashed var(--line);
-    padding: 15px 0;
+    padding: 9px 0;
   }
   .kvedit .row:last-child { border-bottom: none; }
   .kvedit .k { color: var(--muted); white-space: nowrap; }
   .kvedit .d {
     flex: 1;
     font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 11.5px;
-    line-height: 1.4;
-    color: #5f656d;
+    font-size: 11px;
+    line-height: 1.3;
+    color: #586068;
   }
   .kvedit .d b { color: var(--muted); font-weight: 600; }
   .kvedit .v {
@@ -2338,29 +2337,53 @@
     align-items: baseline;
     gap: 6px;
     flex: 0 0 auto;
+    color: var(--text);
   }
-  .kvedit .v input,
-  .kvedit .v select {
+  /* The value reads like the Status value text — plain, no box. Underline
+     only on hover/focus to signal it's editable. Prefixed with .settings-card
+     so it beats the generic .settings-card input[type=number] box style. */
+  .settings-card .kvedit .v input,
+  .settings-card .kvedit .v select {
+    width: auto;
     background: transparent;
     border: none;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid transparent;
     color: var(--text);
     font-family: 'JetBrains Mono', monospace;
-    font-size: 14px;
+    font-size: 12px;
     text-align: right;
-    padding: 2px 2px 3px;
+    padding: 1px 0;
+    margin: 0;
     border-radius: 0;
     outline: none;
-    transition: border-color .15s;
+    transition: border-color .12s;
   }
-  .kvedit .v input { width: 3.6em; }
-  .kvedit .v input:focus,
-  .kvedit .v select:focus { border-bottom-color: var(--accent); background: transparent; }
-  .kvedit .v .u { color: var(--muted); font-size: 11px; min-width: 28px; }
+  .settings-card .kvedit .v input { width: 3.2em; }
+  .settings-card .kvedit .v input:hover,
+  .settings-card .kvedit .v select:hover { border-bottom-color: var(--line); }
+  .settings-card .kvedit .v input:focus,
+  .settings-card .kvedit .v select:focus { border-bottom-color: var(--accent); background: transparent; }
+  .kvedit .v .u { color: var(--muted); font-size: 10.5px; min-width: 26px; }
   @media (max-width: 560px) {
     .kvedit .row { flex-wrap: wrap; gap: 4px 12px; }
     .kvedit .d { flex-basis: 100%; order: 3; }
   }
+
+  /* Linear (text + arrow) action button — matches the .back-link treatment,
+     used for Save so it reads as a line action, not a filled box. */
+  .btn-linear {
+    background: none;
+    border: none;
+    padding: 4px 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    cursor: pointer;
+    transition: color .12s;
+  }
+  .btn-linear:hover { color: var(--text); }
 
   /* Drag-reorder rank picker. Shared by per-account whitelist editor
      + Settings global priority list. */

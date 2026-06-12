@@ -62,7 +62,7 @@
         </div>
         <div class="row">
           <span class="hint">Order in the left column = mining priority for accounts without an override.</span>
-          <button class="btn primary" type="submit">Save priority →</button>
+          <button class="btn-linear" type="submit">Save priority →</button>
         </div>
       </form>
 
@@ -70,8 +70,7 @@
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
         <span class="kicker">Add by name</span>
         <input type="text" name="name" placeholder="e.g. Marathon" required>
-        <button class="btn" type="submit">Add →</button>
-        <span class="hint">Seed the list before scrape surfaces it.</span>
+        <button class="btn-linear" type="submit">Add →</button>
       </form>
     </section>
 
@@ -79,15 +78,19 @@
       <header class="section-h"><h3>Drop priority mode</h3><span class="meta">How accounts pick the next campaign</span></header>
       <form method="post" action="/settings/priority-mode">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-        <label>Priority mode
-          <select name="priority_mode">
-            <option value="ordered" {{if eq .PriorityMode "ordered"}}selected{{end}}>Ordered — top whitelist first</option>
-            <option value="ending_soonest" {{if eq .PriorityMode "ending_soonest"}}selected{{end}}>Ending soonest — claim expiring first</option>
-          </select>
-        </label>
-        <div class="row">
+        <div class="kvedit">
+          <div class="row">
+            <span class="k">priority mode</span>
+            <span class="d"></span>
+            <span class="v"><select name="priority_mode">
+              <option value="ordered" {{if eq .PriorityMode "ordered"}}selected{{end}}>Ordered — top whitelist first</option>
+              <option value="ending_soonest" {{if eq .PriorityMode "ending_soonest"}}selected{{end}}>Ending soonest — claim expiring first</option>
+            </select></span>
+          </div>
+        </div>
+        <div class="row" style="margin-top:18px;">
           <span class="hint">Applies live to all accounts.</span>
-          <button class="btn primary" type="submit">Save →</button>
+          <button class="btn-linear" type="submit">Save →</button>
         </div>
       </form>
     </section>
@@ -110,22 +113,21 @@
           <label class="cb"><input type="checkbox" name="notify_auth" value="1" {{if .NotifyAuth}}checked{{end}}> auth</label>
           <label class="cb"><input type="checkbox" name="notify_error" value="1" {{if .NotifyError}}checked{{end}}> errors</label>
         </div>
-        <label>Progress milestone step (%)
-          <input type="number" name="progress_notify_step" value="{{.ProgressNotifyStep}}" min="0" max="100" step="5">
-          <span class="field-hint" style="margin:0;font-weight:400;">When "progress" is on, notify at 0% (start), every N%, and 100%. 50 = start/50%/100%. 0 = off (claims only). Applies on watcher reload.</span>
-        </label>
-        <div class="row" style="margin-top:10px;align-items:center;gap:12px;">
-          <button class="btn" type="button"
+        <div class="kvedit">
+          <div class="row">
+            <span class="k">progress step</span>
+            <span class="d">when "progress" is on, notify at 0% (start), every N%, 100% · 50 = start/50/100 · 0 = off · applies on reload</span>
+            <span class="v"><input type="number" name="progress_notify_step" value="{{.ProgressNotifyStep}}" min="0" max="100" step="5"><span class="u">%</span></span>
+          </div>
+        </div>
+        <div class="row" style="margin-top:18px;align-items:center;gap:18px;">
+          <button class="btn-linear" type="button" style="color:var(--muted);"
             hx-post="/settings/notify-test"
             hx-target="#notify-test-result"
             hx-swap="innerHTML"
             hx-headers='{"X-CSRF-Token": "{{$.CSRFToken}}"}'>Send test →</button>
           <span id="notify-test-result"></span>
-        </div>
-        <div class="field-hint" style="margin:6px 0 0;">Sends a sample embed to your webhook (global, or the first account webhook). Save the webhook first.</div>
-        <div class="row">
-          <a class="back-link" href="/">← back</a>
-          <button class="btn primary" type="submit">Save →</button>
+          <button class="btn-linear" type="submit" style="margin-left:auto;">Save →</button>
         </div>
       </form>
     </section>
@@ -177,9 +179,8 @@
             <input type="password" name="confirm_password" required minlength="8" autocomplete="new-password">
           </label>
         </div>
-        <div class="row">
-          <span class="field-hint" style="margin:0;">Minimum 8 characters. You stay logged in after changing it.</span>
-          <button class="btn primary" type="submit">Change password →</button>
+        <div class="row" style="justify-content:flex-end;">
+          <button class="btn-linear" type="submit">Change password →</button>
         </div>
       </form>
     </section>
@@ -223,9 +224,8 @@
             <span class="v"><input type="number" name="log_retention_days" value="{{.LogRetentionDays}}" min="1" max="365"><span class="u">days</span></span>
           </div>
         </div>
-        <div class="row" style="margin-top:18px;">
-          <a class="back-link" href="/">← back</a>
-          <button class="btn primary" type="submit">Save →</button>
+        <div class="row" style="margin-top:18px;justify-content:flex-end;">
+          <button class="btn-linear" type="submit">Save →</button>
         </div>
       </form>
     </section>
