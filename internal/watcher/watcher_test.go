@@ -824,3 +824,67 @@ func TestFirstUnmetPrecondition(t *testing.T) {
 		t.Fatalf("want dropB unmet, got %q", got)
 	}
 }
+
+// fieldRecordingNotifier captures both the event name and fields of every
+// notification so a test can assert WHICH reward triggered a claim embed.
+type fieldRecordingNotifier struct {
+	mu     sync.Mutex
+	events []string
+	fields []map[string]any
+}
+
+func (r *fieldRecordingNotifier) Notify(_ context.Context, ev string, f map[string]any) error {
+	r.mu.Lock()
+	r.events = append(r.events, ev)
+	r.fields = append(r.fields, f)
+	r.mu.Unlock()
+	return nil
+}
+
+// claimDrops returns the "drop" field of every recorded "claim" event.
+func (r *fieldRecordingNotifier) claimDrops() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []string
+	for i, ev := range r.events {
+		if ev != "claim" {
+			continue
+		}
+		if d, ok := r.fields[i]["drop"].(string); ok {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// A reward picked up by the multi-reward sweep (Kick CompletedSweeper) must
+// fire the same "claim" Discord notification the benefit-complete path uses —
+// otherwise swept sibling rewards are silent. The actively-mined
+// currentBenefit must NOT be double-notified (the StateClaiming flow owns it),
+// and a reward that resurfaces on a later poll must notify only once.
+func TestWatcher_NotifySwept_SiblingNotifiesCurrentExcludedAndDeduped(t *testing.T) {
+	ctx := context.Background()
+	notif := &fieldRecordingNotifier{}
+	w := New(Config{
+		AccountID: "acc1",
+		Backend:   platformtest.New(),
+		Session:   platform.Session{AccessToken: "tok"},
+		Notifier:  notif,
+		Platform:  "kick",
+	})
+	// The currentBenefit is what the benefit-complete path claims + notifies.
+	w.currentBenefit = &platform.DropBenefit{ID: "logo", Name: "Kick + Rust Wallpaper Logo"}
+
+	sibling := platform.ClaimedReward{Game: "Rust", Title: "Kick + Rust Wallpaper Pattern"}
+	current := platform.ClaimedReward{Game: "Rust", Title: "Kick + Rust Wallpaper Logo"}
+
+	// Sweep returns both the sibling AND the currentBenefit (the dedupe case).
+	w.notifySwept(ctx, sibling)
+	w.notifySwept(ctx, current)
+	// Next poll resurfaces the sibling (claim POST raced ahead of progress).
+	w.notifySwept(ctx, sibling)
+
+	drops := notif.claimDrops()
+	require.Equal(t, []string{"Kick + Rust Wallpaper Pattern"}, drops,
+		"only the sibling notifies: currentBenefit excluded, sibling deduped to one")
+}
