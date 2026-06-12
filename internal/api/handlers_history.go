@@ -82,6 +82,12 @@ func (d *historyDeps) get(w http.ResponseWriter, r *http.Request) {
 		page.Claims = append(page.Claims, rewardClaimsFromRing(d.ring.Snapshot(), labelByID, platformByID)...)
 	}
 
+	// Cross-source dedupe — when a claim reaches the claims table it
+	// renders a Source="drop" row, so the Source="reward" ring fallback
+	// for the same claim is pure duplication. Suppress those, keeping
+	// only reaper-only rewards that never hit the claims table.
+	page.Claims = suppressDuplicateRewardRows(page.Claims)
+
 	// Dedupe — a single reward claim is double-emitted by the watcher
 	// (multi-reward sweep + benefit-complete flow) and the sweep can
 	// also re-fire, so collapse to one row.
@@ -184,6 +190,43 @@ func dedupeClaims(claims []historyClaim) []historyClaim {
 		deduped = append(deduped, c)
 	}
 	return deduped
+}
+
+// suppressDuplicateRewardRows drops every Source="reward" row that has
+// a Source="drop" counterpart for the same claim. A claim that reaches
+// the claims table already renders as a green DROP row (with benefit_id,
+// game, title); the reward-reaper ring then emits a redundant orange
+// REWARD row for the same thing. The two rows disagree on game (drop
+// carries one, reward usually doesn't) and on time (claims_at vs ring
+// log time, off by seconds), so the identity key deliberately ignores
+// both — it's account+platform+normalized-title. Reaper-only rewards
+// with no drop counterpart (legacy Twitch claims, no benefit_id) are
+// kept so they still render their single REWARD row.
+func suppressDuplicateRewardRows(claims []historyClaim) []historyClaim {
+	dropKeys := make(map[string]bool)
+	for _, c := range claims {
+		if c.Source == "drop" {
+			dropKeys[claimIdentity(c)] = true
+		}
+	}
+	out := claims[:0]
+	for _, c := range claims {
+		if c.Source == "reward" && dropKeys[claimIdentity(c)] {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// claimIdentity is the cross-source identity of a claim: account
+// (ignoring a leading "@" so the drop row's "@nori" matches the reward
+// row's "nori"), platform, and title normalised case- and
+// space-insensitively. Game and time are intentionally excluded.
+func claimIdentity(c historyClaim) string {
+	acc := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(c.Account), "@"))
+	title := strings.ToLower(strings.Join(strings.Fields(c.Title), " "))
+	return acc + "|" + c.Platform + "|" + title
 }
 
 // fieldClean reads a string field and normalises the "missing" cases

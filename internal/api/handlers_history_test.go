@@ -92,6 +92,32 @@ func TestDedupeClaims_CollapsesDoubleEmit(t *testing.T) {
 	assert.Len(t, got, 1, "double-emit with differing game must collapse")
 }
 
+// A Kick claim that reached the claims table (DROP row, has game) and
+// its redundant reward-reaper ring row (REWARD, no game, "@"-less
+// account, off-by-seconds time) must collapse to the single DROP row.
+// A reaper-only reward with no DROP counterpart survives.
+func TestSuppressDuplicateRewardRows(t *testing.T) {
+	claims := []historyClaim{
+		// Claims-table DROP row: green, carries game + @account.
+		{When: "2026-06-12 10:00", Platform: "kick", Game: "Rust", Title: "Kick + Rust Wallpaper Pattern", Account: "@Phluses", Source: "drop"},
+		// Ring REWARD row for the SAME claim: no game, no "@", +1 min.
+		{When: "2026-06-12 10:01", Platform: "kick", Game: "", Title: "Kick + Rust Wallpaper Pattern", Account: "Phluses", Source: "reward"},
+		// Reaper-only REWARD with no DROP counterpart — must survive.
+		{When: "2026-06-12 09:30", Platform: "twitch", Game: "", Title: "Legacy Reaper Reward", Account: "@nori", Source: "reward"},
+	}
+
+	got := suppressDuplicateRewardRows(claims)
+
+	assert.Len(t, got, 2, "the duplicate reward row is suppressed; drop + orphan reward remain")
+	bySource := map[string]int{}
+	for _, c := range got {
+		bySource[c.Source+"|"+c.Title]++
+	}
+	assert.Equal(t, 1, bySource["drop|Kick + Rust Wallpaper Pattern"], "the DROP row is kept")
+	assert.Equal(t, 0, bySource["reward|Kick + Rust Wallpaper Pattern"], "the duplicate REWARD row is gone")
+	assert.Equal(t, 1, bySource["reward|Legacy Reaper Reward"], "the reaper-only REWARD survives")
+}
+
 // Genuinely distinct claims (different title or time) are kept.
 func TestDedupeClaims_KeepsDistinct(t *testing.T) {
 	claims := []historyClaim{
