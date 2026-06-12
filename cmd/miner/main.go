@@ -111,21 +111,27 @@ func run() error {
 	registry := platform.NewRegistry()
 
 	var browserClient *browser.Client
+	var watchClients []*browser.Client
 	var kickBackend *kick.Backend
 	twitchBrowserEnabled := os.Getenv("GRUB_TWITCH_BROWSER") == "1"
-	if cfg.BrowserURL != "" {
-		bc, err := browser.Dial(cfg.BrowserURL)
+	for _, url := range cfg.BrowserURLs {
+		bc, err := browser.Dial(url)
 		if err != nil {
-			return fmt.Errorf("dial browser sidecar: %w", err)
+			return fmt.Errorf("dial browser sidecar %q: %w", url, err)
 		}
 		defer bc.Close()
-		browserClient = bc
+		watchClients = append(watchClients, bc)
 	}
+	if len(watchClients) > 0 {
+		browserClient = watchClients[0] // login / Twitch / display client
+	}
+	logger.Info("browser sidecars dialed", "count", len(watchClients), "urls", cfg.BrowserURLs)
 	// Kick runs over the pure-HTTP utls transport (Chrome TLS fingerprint) and
 	// no longer needs the chromedp sidecar for data — Kick's API 403s any
 	// CDP browser but accepts utls. Register it regardless of GRUB_BROWSER_URL;
 	// the browser client (may be nil) is kept only for the legacy login path.
-	kickBackend = kick.New(browserClient)
+	// Pass the full sidecar pool so Kick shards accounts one-per-Chrome.
+	kickBackend = kick.New(browserClient, watchClients...)
 	// Browser-watch: route Kick watch-time accrual through the sidecar's
 	// real IVS <video> session (the only path Kick credits). Requires a
 	// sidecar; EnableBrowserWatch no-ops + warns if browserClient is nil.

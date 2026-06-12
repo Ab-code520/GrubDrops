@@ -14,7 +14,13 @@ type Config struct {
 	DiscordWebhookURL string
 	SecureCookies     bool
 	BrowserURL        string
-	LogLevel          string
+	// BrowserURLs is the full sidecar pool (GRUB_BROWSER_URLS, comma-sep).
+	// Kick shards accounts across these so two logged-in Kick accounts get
+	// their own Chrome (one shared Chrome collides on the kick.com cookie).
+	// Falls back to [BrowserURL] when unset. BrowserURL stays the login /
+	// Twitch / display client.
+	BrowserURLs []string
+	LogLevel    string
 
 	// KickBrowserWatch routes Kick watch-time accrual through the chromedp
 	// sidecar (a real, playing IVS <video>), the only path Kick credits.
@@ -44,6 +50,13 @@ func Load() (Config, error) {
 		BrowserURL:        os.Getenv("GRUB_BROWSER_URL"),
 		LogLevel:          strings.ToLower(getenv("GRUB_LOG_LEVEL", "info")),
 		KickBrowserWatch:  parseBool(os.Getenv("GRUB_KICK_BROWSER_WATCH")),
+	}
+	cfg.BrowserURLs = splitList(os.Getenv("GRUB_BROWSER_URLS"))
+	if len(cfg.BrowserURLs) == 0 && cfg.BrowserURL != "" {
+		cfg.BrowserURLs = []string{cfg.BrowserURL}
+	}
+	if cfg.BrowserURL == "" && len(cfg.BrowserURLs) > 0 {
+		cfg.BrowserURL = cfg.BrowserURLs[0]
 	}
 	cfg.OIDCIssuer = os.Getenv("GRUB_OIDC_ISSUER")
 	cfg.OIDCClientID = os.Getenv("GRUB_OIDC_CLIENT_ID")

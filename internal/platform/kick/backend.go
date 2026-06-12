@@ -23,6 +23,19 @@ type Backend struct {
 	c   *browser.Client
 	api *api
 
+	// watchPool is the set of chromedp sidecars available for the
+	// credit-earning IVS watch path. Each Kick account is pinned to ONE
+	// sidecar (clientByAcc) so two logged-in accounts never share a single
+	// Chrome — sharing collides on the browser-profile kick.com
+	// session_token cookie and saturates one Chrome with tabs, knocking
+	// every account's player offline (see project_kick_drops_progress_re).
+	// With one account per sidecar each Chrome runs the proven, durable
+	// single-account watch. Falls back to [c] when only one sidecar is
+	// configured.
+	watchPool   []*browser.Client
+	clientByAcc map[string]*browser.Client
+	nextClient  int
+
 	// browserWatch, when true AND c != nil, routes StartWatch/Heartbeat/
 	// StopWatch to the chromedp sidecar so a real IVS <video> session
 	// accrues drop watch-time. The pure-HTTP viewer-WS (openWatch) does
@@ -45,15 +58,49 @@ var _ platform.Backend = (*Backend)(nil)
 // New builds the Kick backend. The browser.Client may be nil (data flows over
 // the utls HTTP client); it's kept for the interactive-login path and, when
 // EnableBrowserWatch is set, for the credit-earning IVS watch path.
-func New(c *browser.Client) *Backend {
+// New builds the Kick backend. c is the login client (also used as the sole
+// watch sidecar when no extra watch clients are passed). watchClients, when
+// non-empty, is the pool of sidecars across which accounts are sharded for
+// the IVS watch path (one account per sidecar).
+func New(c *browser.Client, watchClients ...*browser.Client) *Backend {
+	pool := make([]*browser.Client, 0, len(watchClients))
+	for _, w := range watchClients {
+		if w != nil {
+			pool = append(pool, w)
+		}
+	}
+	if len(pool) == 0 && c != nil {
+		pool = []*browser.Client{c}
+	}
 	return &Backend{
 		c:                c,
 		api:              newAPI(),
+		watchPool:        pool,
+		clientByAcc:      map[string]*browser.Client{},
 		handleByAcc:      map[string]string{},
 		channelsByAcc:    map[string][]string{},
 		campaignChannels: map[string][]kickChannel{},
 		categoryChannels: map[string][]kickChannel{},
 	}
+}
+
+// watchClientFor pins an account to one sidecar from the pool (sticky,
+// round-robin on first use) so re-picks reuse the same Chrome and two
+// accounts land on different sidecars. Returns nil when no sidecar is
+// configured (caller falls back to the non-accruing WS path).
+func (b *Backend) watchClientFor(accountID string) *browser.Client {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if cl, ok := b.clientByAcc[accountID]; ok {
+		return cl
+	}
+	if len(b.watchPool) == 0 {
+		return nil
+	}
+	cl := b.watchPool[b.nextClient%len(b.watchPool)]
+	b.nextClient++
+	b.clientByAcc[accountID] = cl
+	return cl
 }
 
 // EnableBrowserWatch switches StartWatch/Heartbeat/StopWatch onto the
@@ -81,6 +128,9 @@ type kickWatch struct {
 // Heartbeat/StopWatch can target the same browser tab.
 type kickBrowserWatch struct {
 	handle string
+	// client is the specific sidecar this watch's tab lives in, so
+	// Heartbeat/StopWatch target the same Chrome that opened it.
+	client *browser.Client
 }
 
 func (b *Backend) Name() string { return "kick" }
@@ -419,16 +469,16 @@ func (b *Backend) StartWatch(ctx context.Context, s platform.Session, stream pla
 	// — the ONLY path that accrues Kick drop watch-time. The sidecar needs
 	// the channel SLUG (it navigates kick.com/<slug>) plus the session
 	// cookies, which it injects before navigation.
-	if b.browserWatch && b.c != nil {
+	if cl := b.watchClientFor(s.AccountID); b.browserWatch && cl != nil {
 		ks, err := decodeSession(s)
 		if err != nil {
 			return platform.WatchHandle{}, fmt.Errorf("kick start watch: decode session: %w", err)
 		}
-		handle, err := b.c.StartWatch(ctx, toProto(ks), stream.Channel)
+		handle, err := cl.StartWatch(ctx, toProto(ks), stream.Channel)
 		if err != nil {
 			return platform.WatchHandle{}, fmt.Errorf("kick start watch (browser) %s: %w", stream.Channel, err)
 		}
-		return platform.WatchHandle{Channel: stream.Channel, Internal: kickBrowserWatch{handle: handle}}, nil
+		return platform.WatchHandle{Channel: stream.Channel, Internal: kickBrowserWatch{handle: handle, client: cl}}, nil
 	}
 
 	// Legacy viewer-WS presence path (NON-ACCRUING — kept only as a
@@ -448,7 +498,7 @@ func (b *Backend) StartWatch(ctx context.Context, s platform.Session, stream pla
 func (b *Backend) Heartbeat(ctx context.Context, h platform.WatchHandle) error {
 	switch w := h.Internal.(type) {
 	case kickBrowserWatch:
-		alive, err := b.c.Heartbeat(ctx, w.handle)
+		alive, err := w.client.Heartbeat(ctx, w.handle)
 		if err != nil {
 			return fmt.Errorf("kick heartbeat (browser) %q: %w", h.Channel, err)
 		}
@@ -472,7 +522,7 @@ func (b *Backend) Heartbeat(ctx context.Context, h platform.WatchHandle) error {
 func (b *Backend) StopWatch(ctx context.Context, h platform.WatchHandle) error {
 	switch w := h.Internal.(type) {
 	case kickBrowserWatch:
-		if err := b.c.StopWatch(ctx, w.handle); err != nil {
+		if err := w.client.StopWatch(ctx, w.handle); err != nil {
 			return fmt.Errorf("kick stop watch (browser) %q: %w", h.Channel, err)
 		}
 		return nil
