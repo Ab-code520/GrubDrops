@@ -13,7 +13,10 @@ func TestExtraChromiumCookieDBs_IncludesOperaGX(t *testing.T) {
 	}
 	foundGX := false
 	for _, p := range dbs {
-		if strings.Contains(strings.ToLower(p), "operagx") || strings.Contains(strings.ToLower(p), "opera gx") {
+		// Match the OS-specific dir names: macOS "com.operasoftware.OperaGX",
+		// Linux "opera-gx", Windows "Opera GX".
+		lp := strings.ToLower(p)
+		if strings.Contains(lp, "operagx") || strings.Contains(lp, "opera gx") || strings.Contains(lp, "opera-gx") {
 			foundGX = true
 		}
 		if filepath.Base(p) != "Cookies" {
