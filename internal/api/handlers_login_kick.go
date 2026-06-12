@@ -70,13 +70,17 @@ func (d *loginKickDeps) post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verified, err := d.persistKickSession(r.Context(), id, kickCookieForm{
-		KickSession:  r.FormValue("kick_session"),
-		XSRF:         r.FormValue("xsrf_token"),
-		CFClearance:  r.FormValue("cf_clearance"),
-		SessionToken: r.FormValue("session_token"),
-		Channels:     parseKickChannels(r.FormValue("channel")),
-	})
+	// cookies.txt is a few KiB; cap the body well below anything abusive.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
+	form, err := kickCookiesFromNetscape(r.FormValue("cookies_txt"))
+	if err != nil {
+		d.renderError(w, r, id, acc.DisplayName, err.Error())
+		return
+	}
+	form.Channels = parseKickChannels(r.FormValue("channel"))
+
+	verified, err := d.persistKickSession(r.Context(), id, form)
 	if err != nil {
 		d.renderError(w, r, id, acc.DisplayName, "failed to persist session: "+err.Error())
 		return

@@ -2,10 +2,16 @@ package api
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/alexedwards/scs/v2"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/aalejandrofer/grubdrops/internal/store"
@@ -41,6 +47,29 @@ func newKickLoginDeps(t *testing.T, accID string) (*loginKickDeps, *store.Sessio
 	}
 	ss := store.NewSessionStore(db, q, cr)
 	return &loginKickDeps{q: q, sessions: ss}, ss
+}
+
+func TestLoginKickPost_CookiesTxtPersistsSession(t *testing.T) {
+	const id = "acc_0123456789abcdef01234567"
+	d, ss := newKickLoginDeps(t, id)
+	d.sm = scs.New() // post() writes a flash on success
+
+	r := chi.NewRouter()
+	r.Post("/accounts/{id}/login", d.post)
+	h := d.sm.LoadAndSave(r)
+
+	form := url.Values{"cookies_txt": {cookiesTxtOK}}
+	req := httptest.NewRequest(http.MethodPost, "/accounts/"+id+"/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("want 303 redirect, got %d (body %q)", rec.Code, rec.Body.String())
+	}
+	if _, ok, err := ss.Get(context.Background(), id); err != nil || !ok {
+		t.Fatalf("session not persisted: ok=%v err=%v", ok, err)
+	}
 }
 
 // parseKickChannels must accept the various separator styles operators
