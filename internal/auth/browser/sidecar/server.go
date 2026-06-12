@@ -34,7 +34,10 @@ func (s *Server) Authenticate(ctx context.Context, req *pb.AuthenticateRequest) 
 }
 
 func (s *Server) StartWatch(ctx context.Context, req *pb.StartWatchRequest) (*pb.StartWatchResponse, error) {
-	handle, err := s.kick.OpenStream(req.Channel, req.Session)
+	// Browser-watch path: open kick.com/<channel> and drive the IVS player
+	// to muted/playing so Kick credits drop watch-time (the pure-HTTP
+	// viewer-WS does NOT accrue — see project_kick_drops_progress_re memory).
+	handle, err := s.kick.OpenStreamWatch(req.Channel, req.Session)
 	if err != nil {
 		return nil, err
 	}
@@ -42,8 +45,9 @@ func (s *Server) StartWatch(ctx context.Context, req *pb.StartWatchRequest) (*pb
 }
 
 func (s *Server) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.HeartbeatResponse, error) {
-	_, ok := s.b.Tab(req.WatchHandle)
-	return &pb.HeartbeatResponse{Alive: ok}, nil
+	// Alive == tab exists AND its <video> is actually playing (not just the
+	// tab being open), so the watcher swaps channels when playback dies.
+	return &pb.HeartbeatResponse{Alive: s.kick.WatchAlive(req.WatchHandle)}, nil
 }
 
 func (s *Server) StopWatch(ctx context.Context, req *pb.StopWatchRequest) (*pb.StopWatchResponse, error) {

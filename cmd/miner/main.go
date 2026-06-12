@@ -126,8 +126,16 @@ func run() error {
 	// CDP browser but accepts utls. Register it regardless of GRUB_BROWSER_URL;
 	// the browser client (may be nil) is kept only for the legacy login path.
 	kickBackend = kick.New(browserClient)
+	// Browser-watch: route Kick watch-time accrual through the sidecar's
+	// real IVS <video> session (the only path Kick credits). Requires a
+	// sidecar; EnableBrowserWatch no-ops + warns if browserClient is nil.
+	if cfg.KickBrowserWatch {
+		kickBackend.EnableBrowserWatch()
+	}
 	registry.Register(kickBackend)
-	logger.Info("kick backend enabled (utls HTTP transport)", "sidecar", browserClient != nil)
+	logger.Info("kick backend enabled (utls HTTP transport)",
+		"sidecar", browserClient != nil,
+		"browser_watch", cfg.KickBrowserWatch && browserClient != nil)
 
 	if twitchBrowserEnabled && browserClient != nil {
 		registry.Register(twitch.NewBrowserBackend(browserClient))

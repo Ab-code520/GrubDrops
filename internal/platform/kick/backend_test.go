@@ -233,3 +233,40 @@ func TestKickBackend_AllowedChannelCountDistinct(t *testing.T) {
 	b.RegisterChannel("acc3", "alice")
 	assert.Equal(t, 2, b.AllowedChannelCount("kick-inventory"))
 }
+
+// EnableBrowserWatch is a no-op (and must NOT flip browserWatch) when the
+// backend has no sidecar client — otherwise StartWatch would dereference a
+// nil client. With no sidecar the backend stays on the viewer-WS path.
+func TestKickBackend_EnableBrowserWatch_NilClientNoOp(t *testing.T) {
+	b := New(nil)
+	b.EnableBrowserWatch()
+	assert.False(t, b.browserWatch, "browser-watch must stay off without a sidecar client")
+}
+
+// Heartbeat/StopWatch dispatch on the watch-handle's concrete Internal
+// type. An unknown/zero handle is an error for Heartbeat (so the watcher
+// re-picks) and a benign no-op for StopWatch (idempotent teardown).
+func TestKickBackend_WatchHandleDispatch(t *testing.T) {
+	b := New(nil)
+
+	// Unknown handle type -> Heartbeat errors, StopWatch is a no-op.
+	bad := platform.WatchHandle{Channel: "x", Internal: struct{}{}}
+	assert.Error(t, b.Heartbeat(context.Background(), bad))
+	assert.NoError(t, b.StopWatch(context.Background(), bad))
+
+	// Zero handle (Internal == nil) behaves the same.
+	zero := platform.WatchHandle{Channel: "x"}
+	assert.Error(t, b.Heartbeat(context.Background(), zero))
+	assert.NoError(t, b.StopWatch(context.Background(), zero))
+}
+
+// A WS watch handle whose connection has been closed reports a heartbeat
+// error so the watcher swaps channels. StopWatch on it is safe.
+func TestKickBackend_WSWatchHandle_DeadConn(t *testing.T) {
+	b := New(nil)
+	wc := &watchConn{}
+	wc.alive.Store(false)
+	h := platform.WatchHandle{Channel: "x", Internal: kickWatch{conn: wc}}
+	assert.Error(t, b.Heartbeat(context.Background(), h), "dead WS conn -> heartbeat error")
+	assert.NoError(t, b.StopWatch(context.Background(), h))
+}
