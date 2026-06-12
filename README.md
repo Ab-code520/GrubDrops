@@ -2,10 +2,7 @@
   <img src="internal/web/static/img/logo.png" width="160" alt="GrubDrops">
 </p>
 
-<p align="center"><b>Self-hosted, set-and-forget Twitch &amp; Kick drops miner.</b><br>
-Twitch and Kick hand out in-game rewards ("drops") for watching a game's streams; by hand that means parking a tab for hours and clicking <i>claim</i>, per game, per account.<br>
-GrubDrops does it for you: pick your games, it finds a live stream on the right game, banks the watch-time, and claims each drop, across several accounts at once.<br>
-One small web app on your own box. Ships as a Docker image, keeps everything in one SQLite file.</p>
+<p align="center"><b>Self-hosted, set-and-forget Twitch &amp; Kick drops miner.</b></p>
 
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white">
@@ -22,6 +19,11 @@ One small web app on your own box. Ships as a Docker image, keeps everything in 
 </p>
 
 ---
+
+GrubDrops watches the right Twitch and Kick streams for you, banks the
+watch-time, and claims the in-game drops, across several accounts at once. One
+small web app on your own box: ships as a Docker image, keeps everything in a
+single SQLite file.
 
 ## Features
 
