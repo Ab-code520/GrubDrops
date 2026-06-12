@@ -2264,28 +2264,12 @@
     letter-spacing: 0.18em;
     color: var(--muted);
   }
+  /* Add-by-name lives as a single kvedit STATUS row; the form just adds a
+     dashed separator from the priority columns above. */
   .add-by-name {
     margin-top: 14px;
-    padding-top: 12px;
     border-top: 1px dashed var(--line);
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
   }
-  .add-by-name .kicker { margin: 0; }
-  .add-by-name input[type="text"] {
-    flex: 1 1 200px;
-    max-width: 280px;
-    padding: 8px 12px;
-    background: var(--bg);
-    border: 1px solid var(--line);
-    color: var(--text);
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 13px;
-    border-radius: 2px;
-  }
-  .add-by-name input[type="text"]:focus { border-color: var(--accent); outline: none; }
   .settings-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; }
   /* Both priority columns share the row height (= the taller "Selected"
      list); "Available" fills it and scrolls internally so the two columns
@@ -2372,6 +2356,28 @@
   .settings-card .kvedit .v input:focus,
   .settings-card .kvedit .v select:focus { border-bottom-color: var(--accent); background: transparent; }
   .kvedit .v .u { color: var(--muted); font-size: 10.5px; min-width: 26px; }
+  /* Wide-value rows (URLs, passwords, free text): add .grow to the .v so
+     the borderless input fills the row, left-aligned. Skip .d on these. */
+  .kvedit .v.grow { flex: 1 1 auto; }
+  .settings-card .kvedit .v.grow input { width: 100%; text-align: left; }
+  .settings-card .kvedit .v.grow input::placeholder { color: var(--dim); }
+  /* Inline checkbox group as a STATUS-row value (notify kinds). */
+  .kvedit .v.cbs { gap: 22px; flex-wrap: wrap; }
+  .kvedit .v.cbs label.cb {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+  }
+  .kvedit .v.cbs label.cb input[type="checkbox"] {
+    width: 13px; height: 13px;
+    accent-color: var(--accent);
+    margin: 0;
+  }
+  /* Read-only kvlist value with an inline copy action (SSO callback). */
+  .kvlist .v code { background: none; border: none; padding: 0; font: inherit; color: inherit; }
+  .kvlist .v .btn-linear { padding: 0; margin-left: 12px; font-size: 10px; }
   @media (max-width: 560px) {
     .kvedit .row { flex-wrap: wrap; gap: 4px 12px; }
     .kvedit .d { flex-basis: 100%; order: 3; }
@@ -3048,3 +3054,118 @@
   cursor: pointer;
 }
 .copy-field button:hover { color: var(--text); }
+
+/* ===== MOBILE (phone-width) =====
+   Consolidated small-screen pass. Desktop-first file, so these override
+   at the end. Two breakpoints: 720px (tablet/large phone) and 560px
+   (phone). Targets the overflow culprits found at 390px viewport:
+   topbar nav (forced 700px page width), 6-col telemetry, and the
+   event-row grid whose 1fr body track collapsed to 0. */
+@media (max-width: 720px) {
+  /* Topbar: brand + user on row 1, nav gets its own full-width row. */
+  .topbar {
+    grid-template-columns: auto 1fr;
+    row-gap: 6px;
+    padding: 10px 14px;
+  }
+  .topbar .brand { grid-row: 1; grid-column: 1; }
+  .topbar .user  { grid-row: 1; grid-column: 2; justify-self: end; gap: 10px; }
+  .topbar .nav {
+    grid-row: 2; grid-column: 1 / -1;
+    justify-self: stretch;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .topbar .nav a { padding: 7px 10px; white-space: nowrap; }
+  .user .clock { display: none; }
+
+  main { padding: 18px 14px 64px; }
+
+  /* Auth cards (device-code login): long handles/URLs break instead of
+     widening the page. */
+  .auth-card h1 { overflow-wrap: anywhere; }
+  .device-code .url { overflow-wrap: anywhere; }
+
+  /* Expanded event detail: long kv chips (campaign names) wrap inside
+     the chip instead of overflowing. */
+  .ev-detail .kv { max-width: 100%; white-space: normal; word-break: break-word; }
+
+  /* Settings tab strip: horizontal scroll instead of widening the page. */
+  .subnav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+  .subnav-link { white-space: nowrap; flex: 0 0 auto; }
+
+  /* Page heads (both variants): actions drop under the title instead of
+     squeezing it. */
+  .page-head,
+  .shell .ph { grid-template-columns: 1fr; gap: 12px; align-items: start; }
+  .shell { padding: 20px 14px 64px; }
+
+  /* Campaign item rows: type chip stays beside the name, collected marks
+     get their own full-width second row. Header row hidden (labels are
+     obvious from content at this size). */
+  .drop-items { margin: 4px 6px 12px; }
+  .drop-items-head { display: none; }
+  .drop-item {
+    grid-template-columns: 28px 1fr auto;
+    grid-template-areas:
+      "icon name type"
+      "icon collected collected";
+    row-gap: 4px;
+  }
+  .drop-item-icon      { grid-area: icon; }
+  .drop-item-name      { grid-area: name; }
+  .drop-item-collected { grid-area: collected; }
+  .drop-item-type      { grid-area: type; }
+
+  /* Telemetry: 6 cols -> 3. */
+  .telemetry { grid-template-columns: repeat(3, 1fr); gap: 16px 14px; }
+
+  /* Event rows: meta on row 1 (chev · time · dot · account), message on
+     its own full-width row 2 so the 1fr track can't collapse to zero. */
+  .events .ev > summary,
+  .drops-rows .ev > summary,
+  .drops-rows .ev-linkrow > summary {
+    grid-template-columns: 14px auto 10px 1fr;
+    grid-template-areas:
+      "chev t lvl ac"
+      "chev body body body";
+    row-gap: 2px;
+    padding: 6px 12px 6px 14px;
+  }
+  .ev .chev { grid-area: chev; }
+  .ev .t    { grid-area: t; }
+  .ev .lvl  { grid-area: lvl; }
+  .ev .body { grid-area: body; }
+  .ev .ac   { grid-area: ac; justify-self: end; }
+  .ev-detail { padding-left: 38px; }
+
+  /* Static rows (accounts list): name+dot+state on row 1, links/pills on
+     row 2. Without this the minmax(120px,1fr)+2fr grid collapses and the
+     text renders overlapped. */
+  .ev.static .ev-row {
+    grid-template-columns: auto 10px 1fr;
+    grid-template-areas:
+      "t lvl ac"
+      "body body body";
+    row-gap: 4px;
+    padding: 8px 12px 8px 14px;
+  }
+  .ev.static .ev-row .t    { grid-area: t; white-space: normal; }
+  .ev.static .ev-row .lvl  { grid-area: lvl; }
+  .ev.static .ev-row .body { grid-area: body; white-space: normal; }
+  .ev.static .ev-row .ac   { grid-area: ac; justify-self: end; }
+}
+
+@media (max-width: 560px) {
+  .telemetry { grid-template-columns: repeat(2, 1fr); }
+  .stat .value { font-size: 22px; }
+  /* Wide-value settings rows (webhook/avatar URLs): input gets its own
+     full-width line instead of a sliver next to the label. */
+  .kvedit .row { flex-wrap: wrap; }
+  .kvedit .v.grow { flex-basis: 100%; order: 2; }
+  .kvedit .row .d { order: 3; }
+}
