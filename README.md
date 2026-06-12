@@ -135,7 +135,7 @@ are eligible, GrubDrops picks in this order:
    ├─ ending_soonest     → soonest deadline first
    └─ low_avbl_first     → fewest available channels first
 2. Tiebreak: closest to a claim (fewest watch-minutes remaining)
-3. Kick only: restricted (team) campaigns ahead of open ones
+3. Restricted (team) campaigns ahead of open ones (both platforms)
 4. Channel: a live stream confirmed on the campaign's game,
    highest viewer count first (Twitch also probes for one
    actually serving the target drop)
