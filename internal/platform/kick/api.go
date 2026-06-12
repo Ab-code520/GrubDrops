@@ -97,6 +97,37 @@ func (a *api) DiscoverChannelsForCategory(ctx context.Context, sess platform.Ses
 	return out, nil
 }
 
+// Avatar returns the authenticated account's profile-picture URL. AUTHED.
+//
+// Kick's web app reads the current user from kick.com/api/v1/user, whose
+// JSON carries the avatar under profile_pic (older shape) or
+// profilepic/user.profile_pic. We parse tolerantly because the exact shape
+// is undocumented and has drifted. Returns "" when no avatar is set.
+func (a *api) Avatar(ctx context.Context, sess platform.Session) (string, error) {
+	body, status, err := a.d.do(ctx, sess, http.MethodGet, discoveryBase+"/api/v1/user", nil)
+	if err != nil {
+		return "", err
+	}
+	if status != 200 {
+		return "", fmt.Errorf("kick user: status %d body %s", status, truncate(body, 200))
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return "", fmt.Errorf("decode kick user: %w", err)
+	}
+	// Top-level profile_pic variants first.
+	if pic := mstr(obj, "profile_pic", "profilepic", "profile_picture", "avatar"); pic != "" {
+		return pic, nil
+	}
+	// Nested user{} object (some shapes wrap the identity).
+	if sub, ok := obj["user"].(map[string]any); ok {
+		if pic := mstr(sub, "profile_pic", "profilepic", "profile_picture", "avatar"); pic != "" {
+			return pic, nil
+		}
+	}
+	return "", nil
+}
+
 // ---- Authed drops endpoints ----------------------------------------------
 // NOTE: the response STRUCTS below are modelled on Kick's drops/all-campaigns
 // scrape shape + the JS bundle field names; they are PENDING verification

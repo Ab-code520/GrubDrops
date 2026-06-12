@@ -52,6 +52,10 @@ type accountRow struct {
 	AuthOK      bool
 	AuthMsg     string
 	AuthWhen    string // human "x ago" / timestamp
+	// AvatarURL is the resolved <img> src (direct for Twitch, /img/kick
+	// proxied for Kick); "" -> letter circle fallback.
+	AvatarURL      string
+	AccountInitial string
 }
 
 // checkAuth runs the auth-health sweep on demand, then bounces back to
@@ -86,9 +90,11 @@ func (d accountsDeps) list(w http.ResponseWriter, r *http.Request) {
 			st = "stopped"
 		}
 		row := accountRow{
-			Account:   a,
-			State:     st,
-			StateTier: tierForState(a.Enabled == 1, st),
+			Account:        a,
+			State:          st,
+			StateTier:      tierForState(a.Enabled == 1, st),
+			AvatarURL:      avatarSrc(a.Platform, a.AvatarUrl),
+			AccountInitial: initial(a.DisplayName),
 		}
 		if res, ok := authcheck.Load(r.Context(), d.q, a.ID); ok {
 			row.AuthChecked = true

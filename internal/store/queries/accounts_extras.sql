@@ -30,3 +30,6 @@ SELECT * FROM accounts ORDER BY created_at ASC;
 
 -- name: UpdateAccountWebhook :exec
 UPDATE accounts SET webhook_url = ?, updated_at = ? WHERE id = ?;
+
+-- name: UpdateAccountAvatar :exec
+UPDATE accounts SET avatar_url = ?, updated_at = ? WHERE id = ?;

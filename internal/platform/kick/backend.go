@@ -622,3 +622,13 @@ func (b *Backend) VerifyAuth(ctx context.Context, s platform.Session) error {
 }
 
 var _ platform.AuthChecker = (*Backend)(nil)
+
+// FetchAvatar returns the authenticated account's profile-picture URL over the
+// authed utls transport. The value is stored as-is; the UI serves it through
+// the /img/kick proxy so Cloudflare doesn't 403 the hotlink. Satisfies
+// platform.AvatarFetcher.
+func (b *Backend) FetchAvatar(ctx context.Context, s platform.Session) (string, error) {
+	return b.api.Avatar(ctx, s)
+}
+
+var _ platform.AvatarFetcher = (*Backend)(nil)

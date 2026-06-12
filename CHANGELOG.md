@@ -16,6 +16,17 @@ All notable changes to GrubDrops.
 
 ### Added
 
+- **Account profile pictures** — each account now shows its real platform
+  avatar (Twitch via `currentUser.profileImageURL` on `static-cdn.jtvnw.net`,
+  embedded directly; Kick via the authed `/api/v1/user` `profile_pic`, served
+  through the existing `/img/kick` proxy so Cloudflare doesn't 403 the
+  hotlink). New `avatar_url` column on `accounts` (migration `0012`),
+  `UpdateAccountAvatar` query, and a `platform.AvatarFetcher` backend
+  capability. Avatars are backfilled on login and refreshed by the ~12h
+  auth-health sweep — never on the per-tick hot path. Rendered in the dashboard
+  mining rows, the account modal head, and the accounts list, each falling back
+  to the existing letter circle when no avatar is set or the image fails to
+  load (`onerror`).
 - **Release workflow** — `.github/workflows/release.yml` publishes
   `ghcr.io/aalejandrofer/grubdrops` and `ghcr.io/aalejandrofer/grubdrops-browser`
   `linux/amd64` images on `v*` tags.

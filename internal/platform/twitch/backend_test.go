@@ -111,3 +111,28 @@ func TestBackend_ListActiveCampaignsPopulatesAllowList(t *testing.T) {
 	require.NotEmpty(t, out, "allow-list cache should be populated after ListActiveCampaigns")
 	assert.Equal(t, "fakestreamer", out[0].Channel)
 }
+
+func TestBackend_FetchAvatar(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req gqlRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, "CurrentUser", req.OperationName)
+		_, _ = w.Write([]byte(`{"data":{"currentUser":{"id":"123","login":"grubber","displayName":"Grubber","profileImageURL":"https://static-cdn.jtvnw.net/jtv_user_pictures/abc-profile_image-300x300.png"}}}`))
+	}))
+	defer srv.Close()
+
+	b := newForTest(srv.URL)
+	url, err := b.FetchAvatar(context.Background(), platform.Session{AccessToken: "tok"})
+	require.NoError(t, err)
+	assert.Equal(t, "https://static-cdn.jtvnw.net/jtv_user_pictures/abc-profile_image-300x300.png", url)
+}
+
+func TestBackend_FetchAvatar_NullUser(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"currentUser":null}}`))
+	}))
+	defer srv.Close()
+	b := newForTest(srv.URL)
+	_, err := b.FetchAvatar(context.Background(), platform.Session{AccessToken: "tok"})
+	require.Error(t, err)
+}

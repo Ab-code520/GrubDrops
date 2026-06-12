@@ -120,6 +120,17 @@ type AuthChecker interface {
 	VerifyAuth(ctx context.Context, s Session) error
 }
 
+// AvatarFetcher is an optional backend capability: fetch the
+// authenticated account's own profile-picture URL. Returns the URL
+// (empty if the platform has none) and any error. Twitch returns a
+// direct static-cdn.jtvnw.net URL; Kick returns its profile_pic value
+// (served through the /img/kick proxy, since Cloudflare 403s hotlinks).
+// Called off the hot path — only on login + the periodic auth-health
+// sweep, since avatars change rarely.
+type AvatarFetcher interface {
+	FetchAvatar(ctx context.Context, s Session) (string, error)
+}
+
 // CurrentSessionChecker is an optional backend capability for the
 // DropCurrentSessionContext gql query (P6). Watcher uses it post-claim
 // as a soft consistency check.

@@ -73,6 +73,7 @@ type Querier interface {
 	// Lifetime watch minutes: sum of per-benefit progress. Persistent, so it
 	// survives restarts (unlike the heartbeat log ring used for today's count).
 	SumWatchMinutes(ctx context.Context) (int64, error)
+	UpdateAccountAvatar(ctx context.Context, arg UpdateAccountAvatarParams) error
 	UpdateAccountDisplayName(ctx context.Context, arg UpdateAccountDisplayNameParams) error
 	UpdateAccountStatus(ctx context.Context, arg UpdateAccountStatusParams) error
 	UpdateAccountWebhook(ctx context.Context, arg UpdateAccountWebhookParams) error

@@ -83,6 +83,7 @@ type dashMineCard struct {
 	Name           string
 	Login          string
 	AccountInitial string // first letter of display name, "?" fallback
+	AvatarURL      string // resolved <img> src (direct for Twitch, proxied for Kick); "" -> letter circle
 	Platform       string // "twitch" | "kick"
 	State          string // "watching" | "claiming" | "pick_stream" | "sleeping" | "idle" | "stopped"
 	StateSub       string // free-text aside
@@ -641,6 +642,7 @@ func mineCardFromSnap(a gen.Account, s watcher.Snapshot) dashMineCard {
 		Name:           a.DisplayName,
 		Login:          a.DisplayName,
 		AccountInitial: initial(a.DisplayName),
+		AvatarURL:      avatarSrc(a.Platform, a.AvatarUrl),
 		Platform:       a.Platform,
 		State:          s.State,
 		Enabled:        a.Enabled == 1,
@@ -1019,6 +1021,9 @@ type dashAccountDetail struct {
 	State       string // raw watcher state
 	StateLabel  string // human label
 
+	AccountInitial string // letter-circle fallback
+	AvatarURL      string // resolved <img> src; "" -> letter circle
+
 	// Current activity (watching/claiming)
 	CurrentCampaign string
 	CurrentGame     string
@@ -1086,6 +1091,8 @@ func (d dashboardDeps) accountDetail(w http.ResponseWriter, r *http.Request) {
 		Enabled:         acc.Enabled == 1,
 		State:           snap.State,
 		StateLabel:      stateLabel(snap.State),
+		AccountInitial:  initial(acc.DisplayName),
+		AvatarURL:       avatarSrc(acc.Platform, acc.AvatarUrl),
 		CurrentCampaign: snap.CampaignName,
 		CurrentGame:     snap.CampaignGame,
 		CurrentBenefit:  snap.BenefitName,

@@ -71,7 +71,7 @@ func (q *Queries) DeleteAccountSession(ctx context.Context, accountID string) er
 }
 
 const listAllAccounts = `-- name: ListAllAccounts :many
-SELECT id, platform, display_name, status, proxy_url, webhook_url, fingerprint_json, enabled, created_at, updated_at FROM accounts ORDER BY created_at ASC
+SELECT id, platform, display_name, status, proxy_url, webhook_url, fingerprint_json, enabled, created_at, updated_at, avatar_url FROM accounts ORDER BY created_at ASC
 `
 
 func (q *Queries) ListAllAccounts(ctx context.Context) ([]Account, error) {
@@ -94,6 +94,7 @@ func (q *Queries) ListAllAccounts(ctx context.Context) ([]Account, error) {
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -106,6 +107,21 @@ func (q *Queries) ListAllAccounts(ctx context.Context) ([]Account, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateAccountAvatar = `-- name: UpdateAccountAvatar :exec
+UPDATE accounts SET avatar_url = ?, updated_at = ? WHERE id = ?
+`
+
+type UpdateAccountAvatarParams struct {
+	AvatarUrl string `json:"avatar_url"`
+	UpdatedAt int64  `json:"updated_at"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) UpdateAccountAvatar(ctx context.Context, arg UpdateAccountAvatarParams) error {
+	_, err := q.db.ExecContext(ctx, updateAccountAvatar, arg.AvatarUrl, arg.UpdatedAt, arg.ID)
+	return err
 }
 
 const updateAccountDisplayName = `-- name: UpdateAccountDisplayName :exec

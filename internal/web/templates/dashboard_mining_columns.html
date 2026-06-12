@@ -39,7 +39,7 @@
      the current drop + progress + next-up. */}}
 <details class="account-row-d {{if not .Enabled}}disabled{{end}} state-{{.State}}">
   <summary class="account-row">
-    <span class="av">{{.AccountInitial}}</span>
+    <span class="av">{{if .AvatarURL}}<img src="{{.AvatarURL}}" alt="" loading="lazy" onerror="this.remove()"><span class="av-i">{{.AccountInitial}}</span>{{else}}{{.AccountInitial}}{{end}}</span>
     <span class="who">
       <span class="name">{{if .Name}}{{.Name}}{{else}}{{.Login}}{{end}}</span>
     </span>

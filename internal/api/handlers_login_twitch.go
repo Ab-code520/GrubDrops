@@ -140,6 +140,10 @@ func (d *loginTwitchDeps) poll(ctx context.Context, accountID string, backend pl
 			return
 		}
 		slog.Info("twitch session persisted", "account", accountID)
+		// Backfill the avatar now so it shows immediately rather than
+		// waiting for the next auth-health sweep. Best-effort.
+		sess.AccountID = accountID
+		fetchAndStoreAvatar(d.rootCtx, d.q, backend, accountID, sess)
 		// Tell the browser-routed backend (if active) to discard its
 		// cached "authed" flag + PubSub client for this account so the
 		// next sidecar call re-installs the fresh Android-issued

@@ -118,3 +118,33 @@ func TestQueries_AccountRoundtrip(t *testing.T) {
 	}
 	assert.True(t, found, "acc1 not present in ListEnabledAccounts result")
 }
+
+// TestQueries_UpdateAccountAvatar persists the avatar_url column added in
+// migration 0012 and confirms it round-trips through GetAccount, defaulting
+// to "" for freshly created accounts.
+func TestQueries_UpdateAccountAvatar(t *testing.T) {
+	db := openTest(t)
+	q := gen.New(db)
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	_, err := q.CreateAccount(ctx, gen.CreateAccountParams{
+		ID: "acc1", Platform: "twitch", DisplayName: "grubber",
+		Status: "idle", FingerprintJson: "{}", Enabled: 1,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	require.NoError(t, err)
+
+	got, err := q.GetAccount(ctx, "acc1")
+	require.NoError(t, err)
+	assert.Equal(t, "", got.AvatarUrl, "default avatar_url is empty")
+
+	const url = "https://static-cdn.jtvnw.net/jtv_user_pictures/x-profile_image-300x300.png"
+	require.NoError(t, q.UpdateAccountAvatar(ctx, gen.UpdateAccountAvatarParams{
+		AvatarUrl: url, UpdatedAt: now + 1, ID: "acc1",
+	}))
+
+	got, err = q.GetAccount(ctx, "acc1")
+	require.NoError(t, err)
+	assert.Equal(t, url, got.AvatarUrl)
+}

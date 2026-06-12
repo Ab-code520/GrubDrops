@@ -33,6 +33,30 @@ func (b *Backend) VerifyAuth(ctx context.Context, s platform.Session) error {
 
 var _ platform.AuthChecker = (*Backend)(nil)
 
+// FetchAvatar returns the authenticated user's profile-picture URL via the
+// CurrentUser gql query. The URL is on static-cdn.jtvnw.net (public CDN), so
+// it is embedded directly in the UI. Satisfies platform.AvatarFetcher.
+func (b *Backend) FetchAvatar(ctx context.Context, s platform.Session) (string, error) {
+	const q = `query CurrentUser { currentUser { id login displayName profileImageURL } }`
+	var resp struct {
+		CurrentUser *struct {
+			ID              string `json:"id"`
+			Login           string `json:"login"`
+			DisplayName     string `json:"displayName"`
+			ProfileImageURL string `json:"profileImageURL"`
+		} `json:"currentUser"`
+	}
+	if err := b.c.gqlQuery(ctx, s.AccessToken, "CurrentUser", q, nil, &resp); err != nil {
+		return "", fmt.Errorf("currentUser avatar query: %w", err)
+	}
+	if resp.CurrentUser == nil {
+		return "", fmt.Errorf("currentUser null — token invalid or expired")
+	}
+	return resp.CurrentUser.ProfileImageURL, nil
+}
+
+var _ platform.AvatarFetcher = (*Backend)(nil)
+
 // CampaignDetails fetches a campaign's watch-time benefits on demand (used
 // by the /drops items panel to backfill non-whitelisted campaigns that
 // discovery skipped). Synth scrape IDs (containing "|" or " ") aren't real
