@@ -155,8 +155,9 @@ campaign with no live stream is skipped, not slept on.
 
 ## Configuration
 
-Everything is set through environment variables. Only `GRUB_MASTER_KEY` is
-required; the rest have sensible defaults.
+All settings are environment variables. `GRUB_MASTER_KEY` is the only **required**
+one. Every other variable below is **optional**: leave it unset to take the
+default shown.
 
 | Var | Default | Purpose |
 |-----|---------|---------|
