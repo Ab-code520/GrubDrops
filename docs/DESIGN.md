@@ -100,8 +100,56 @@ display in expanded rows. Keep all `<details>` expand behavior.
 
 ## Buttons
 
-`.btn`, `.btn.primary` (accent fill), `.btn.sm`, `.btn.ghost`. Never inline
-`padding`/`font`/`border` on a button — adjust the class.
+Two tiers — pick by placement, never invent a third:
+
+- **Page-head actions** (`.ph .actions` only): `.btn`, `.btn.primary`
+  (accent fill), `.btn.sm`, `.btn.ghost`. The filled box is reserved for
+  the one primary page action (e.g. `+ Add account`).
+- **Everything inside a section** (Save, Add, Send test, Change password,
+  copy): **`.btn-linear`** — uppercase mono text + `→`, accent color, no
+  border, no fill. Reads as a line action, not a box.
+
+  ```html
+  <button class="btn-linear" type="submit">Save →</button>
+  ```
+
+  Primary linear action stays `--accent`; a secondary one next to it gets
+  `color:var(--muted)` (e.g. Send test beside Save). Right-align the
+  primary (`margin-left:auto` in a `.row`).
+
+Never inline `padding`/`font`/`border` on a button — adjust the class.
+Never put a filled `.btn` box inside a flat section.
+
+## Key-value rows (settings, status, read-outs)
+
+STATUS-style dashed-leader rows are the canonical "table" for settings and
+read-outs. Never `<table>`, never boxed inputs in settings sections.
+
+- **Read-only** — `.kvlist` > `.kvrow` > `.k` / `.v` (Status panel, SSO
+  info). Label muted left, value right, dashed rule between rows.
+  An inline action on a value is a `.btn-linear` (e.g. callback `copy →`).
+- **Editable** — `.kvedit` > `.row`:
+
+  ```html
+  <div class="kvedit">
+    <div class="row">
+      <span class="k">tick interval</span>
+      <span class="d">how often it <b>thinks</b> — the watcher loop pulse</span>
+      <span class="v"><input type="number" name="…"><span class="u">s</span></span>
+    </div>
+  </div>
+  ```
+
+  `.k` mono muted label · `.d` optional prose description (IBM Plex 11px)
+  · `.v` borderless right-aligned input, underline only on hover/focus ·
+  `.u` unit suffix.
+- **Wide values** (URL, password, free text): add `.grow` to the `.v` —
+  the input fills the row, left-aligned. Skip `.d`; fold hints into the
+  placeholder (`https://…/avatar.png · optional`).
+- **Checkbox group as a value**: `.v.cbs` with inline `label.cb` items
+  (notify kinds row).
+- Number-input spinner arrows are globally hidden in settings — values are
+  typed. Don't re-enable.
 
 ## Subnav
 

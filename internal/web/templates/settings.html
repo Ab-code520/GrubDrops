@@ -68,9 +68,13 @@
 
       <form method="post" action="/settings/global-games/add" class="add-by-name">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-        <span class="kicker">Add by name</span>
-        <input type="text" name="name" placeholder="e.g. Marathon" required>
-        <button class="btn-linear" type="submit">Add →</button>
+        <div class="kvedit">
+          <div class="row">
+            <span class="k">add by name</span>
+            <span class="v grow"><input type="text" name="name" placeholder="e.g. Marathon" required></span>
+            <button class="btn-linear" type="submit">Add →</button>
+          </div>
+        </div>
       </form>
     </section>
 
@@ -101,19 +105,24 @@
       <header class="section-h"><h3>Notifications</h3><span class="meta">Discord</span></header>
       <form method="post" action="/settings/notifications" id="notifications-form">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-        <label>Global Discord webhook URL
-          <input type="url" name="discord_webhook" value="{{.GlobalDiscordWebhook}}" placeholder="https://discord.com/api/webhooks/…">
-        </label>
-        <label>Bot avatar URL <span class="field-hint" style="margin:0;font-weight:400;">optional — image shown as the sender avatar</span>
-          <input type="url" name="notify_avatar_url" value="{{.NotifyAvatarURL}}" placeholder="https://…/avatar.png">
-        </label>
-        <div class="settings-grid-4">
-          <label class="cb"><input type="checkbox" name="notify_claim" value="1" {{if .NotifyClaim}}checked{{end}}> claims</label>
-          <label class="cb"><input type="checkbox" name="notify_progress" value="1" {{if .NotifyProgress}}checked{{end}}> progress</label>
-          <label class="cb"><input type="checkbox" name="notify_auth" value="1" {{if .NotifyAuth}}checked{{end}}> auth</label>
-          <label class="cb"><input type="checkbox" name="notify_error" value="1" {{if .NotifyError}}checked{{end}}> errors</label>
-        </div>
         <div class="kvedit">
+          <div class="row">
+            <span class="k">discord webhook</span>
+            <span class="v grow"><input type="url" name="discord_webhook" value="{{.GlobalDiscordWebhook}}" placeholder="https://discord.com/api/webhooks/…"></span>
+          </div>
+          <div class="row">
+            <span class="k">bot avatar</span>
+            <span class="v grow"><input type="url" name="notify_avatar_url" value="{{.NotifyAvatarURL}}" placeholder="https://…/avatar.png · optional — shown as the sender avatar"></span>
+          </div>
+          <div class="row">
+            <span class="k">notify on</span>
+            <span class="v cbs">
+              <label class="cb"><input type="checkbox" name="notify_claim" value="1" {{if .NotifyClaim}}checked{{end}}> claims</label>
+              <label class="cb"><input type="checkbox" name="notify_progress" value="1" {{if .NotifyProgress}}checked{{end}}> progress</label>
+              <label class="cb"><input type="checkbox" name="notify_auth" value="1" {{if .NotifyAuth}}checked{{end}}> auth</label>
+              <label class="cb"><input type="checkbox" name="notify_error" value="1" {{if .NotifyError}}checked{{end}}> errors</label>
+            </span>
+          </div>
           <div class="row">
             <span class="k">progress step</span>
             <span class="d">when "progress" is on, notify at 0% (start), every N%, 100% · 50 = start/50/100 · 0 = off · applies on reload</span>
@@ -152,11 +161,10 @@
             {{range .OIDC.AllowedEmails}}{{.}} {{end}}{{range .OIDC.AllowedGroups}}@{{.}} {{end}}
           {{else}}Any user authenticated by your identity provider{{end}}
         </span></div>
-      </div>
-      <div class="kvrow" style="margin-top:10px;"><span class="k">callback</span></div>
-      <div class="copy-field">
-        <code id="sso-callback">{{.OIDC.CallbackURL}}</code>
-        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('sso-callback').textContent.trim())">copy</button>
+        <div class="kvrow"><span class="k">callback</span><span class="v">
+          <code id="sso-callback">{{.OIDC.CallbackURL}}</code>
+          <button type="button" class="btn-linear" onclick="navigator.clipboard.writeText(document.getElementById('sso-callback').textContent.trim())">copy →</button>
+        </span></div>
       </div>
       <p class="hint" style="margin-top:10px;">Configured via <code>GRUB_OIDC_*</code> environment variables (read-only here).</p>
       {{else}}
@@ -168,18 +176,21 @@
       <header class="section-h"><h3>Master password</h3><span class="meta">Admin login</span></header>
       <form method="post" action="/settings/password" autocomplete="off">
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-        <label>Current password
-          <input type="password" name="current_password" required autocomplete="current-password">
-        </label>
-        <div class="settings-grid-2">
-          <label>New password
-            <input type="password" name="new_password" required minlength="8" autocomplete="new-password">
-          </label>
-          <label>Confirm new password
-            <input type="password" name="confirm_password" required minlength="8" autocomplete="new-password">
-          </label>
+        <div class="kvedit">
+          <div class="row">
+            <span class="k">current password</span>
+            <span class="v grow"><input type="password" name="current_password" required autocomplete="current-password"></span>
+          </div>
+          <div class="row">
+            <span class="k">new password</span>
+            <span class="v grow"><input type="password" name="new_password" required minlength="8" autocomplete="new-password"></span>
+          </div>
+          <div class="row">
+            <span class="k">confirm new password</span>
+            <span class="v grow"><input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"></span>
+          </div>
         </div>
-        <div class="row" style="justify-content:flex-end;">
+        <div class="row" style="margin-top:18px;justify-content:flex-end;">
           <button class="btn-linear" type="submit">Change password →</button>
         </div>
       </form>
