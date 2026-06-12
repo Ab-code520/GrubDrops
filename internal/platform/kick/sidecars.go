@@ -81,7 +81,7 @@ func (r *sidecarRegistry) nameFor(accountID string) string {
 	return ""
 }
 
-func (r *sidecarRegistry) touch(accountID string)              { r.touchAt(accountID, time.Now()) }
+func (r *sidecarRegistry) touch(accountID string) { r.touchAt(accountID, time.Now()) }
 func (r *sidecarRegistry) touchAt(accountID string, t time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

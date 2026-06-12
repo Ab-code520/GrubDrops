@@ -79,7 +79,7 @@ func TestRegistry_ReaperStopsIdleRunning(t *testing.T) {
 
 func TestRegistry_ReaperKeepsFreshAndStopped(t *testing.T) {
 	ctl := newFakeCtl()
-	ctl.run["grubdrops-browser-ttik3r"] = true  // fresh, running
+	ctl.run["grubdrops-browser-ttik3r"] = true   // fresh, running
 	ctl.run["grubdrops-browser-phluses"] = false // idle but already stopped
 	reg := newSidecarRegistry(ctl, "grubdrops-browser-{slug}", 9090, 50*time.Millisecond)
 	reg.register("acc1", "TTik3r")
