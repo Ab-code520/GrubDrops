@@ -34,6 +34,10 @@ const (
 	// kickWatchSettleWait is how long we give the SPA + IVS player to
 	// mount the <video> element after navigation before driving it.
 	kickWatchSettleWait = 8 * time.Second
+	// kickWatchPlayTimeout bounds how long OpenStreamWatch polls for the
+	// IVS player to actually start playing before giving up (so the
+	// watcher re-picks another channel instead of holding a dead tab).
+	kickWatchPlayTimeout = 45 * time.Second
 	// kickWatchKeepAliveEvery is the cadence of the background nudge that
 	// un-pauses / re-mutes the player if Kick's UI or an ad break paused
 	// it, AND dispatches a trusted mouse-move to defeat the anti-AFK
@@ -134,16 +138,39 @@ func (k *Kick) OpenStreamWatch(channel string, session *pb.KickSession) (string,
 	if err := waitCloudflareSettled(ctx, 20*time.Second); err != nil {
 		slog.Warn("kick watch: cloudflare interstitial did not settle", "channel", channel, "err", err.Error())
 	}
-	// Let the SPA mount the player, then drive it.
+	// Let the SPA mount the player, then drive it — POLLING until the
+	// <video> is actually playing+buffered. CF + SPA + IVS init can take
+	// 15-40s in headless; returning before playback starts makes the
+	// watcher's first heartbeat fail and bail (observed: readyState 0 at
+	// 16s). Re-run the drive (which calls play()) each poll.
 	var status string
-	if err := chromedp.Run(ctx,
-		chromedp.Sleep(kickWatchSettleWait),
-		chromedp.Evaluate(kickPlayerDriveScript, &status),
-	); err != nil {
-		k.b.CloseTab(handle)
-		return "", fmt.Errorf("kick watch drive player %s: %w", channel, err)
+	playing := false
+	_ = chromedp.Run(ctx, chromedp.Sleep(kickWatchSettleWait))
+	deadline := time.Now().Add(kickWatchPlayTimeout)
+	for time.Now().Before(deadline) {
+		if err := chromedp.Run(ctx, chromedp.Evaluate(kickPlayerDriveScript, &status)); err != nil {
+			k.b.CloseTab(handle)
+			return "", fmt.Errorf("kick watch drive player %s: %w", channel, err)
+		}
+		var st struct {
+			Playing     bool    `json:"playing"`
+			ReadyState  int     `json:"readyState"`
+			CurrentTime float64 `json:"currentTime"`
+		}
+		_ = json.Unmarshal([]byte(status), &st)
+		if st.Playing && st.ReadyState >= 3 && st.CurrentTime > 0 {
+			playing = true
+			break
+		}
+		if err := chromedp.Run(ctx, chromedp.Sleep(2*time.Second)); err != nil {
+			break
+		}
 	}
-	slog.Info("kick watch opened", "channel", channel, "handle", handle, "player", status)
+	slog.Info("kick watch opened", "channel", channel, "handle", handle, "playing", playing, "player", status)
+	if !playing {
+		k.b.CloseTab(handle)
+		return "", fmt.Errorf("kick watch %s: player never started (last status %s)", channel, status)
+	}
 
 	// Register liveness state for this handle so WatchAlive can detect a
 	// stalled (non-advancing) <video>.
