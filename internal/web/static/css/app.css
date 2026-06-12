@@ -2359,6 +2359,14 @@
     transition: border-color .12s;
   }
   .settings-card .kvedit .v input { width: 3.2em; }
+  /* Kill the native number-input spinner arrows — they break the flat
+     STATUS-row look. Value still editable by typing / arrow keys. */
+  .settings-card input[type="number"]::-webkit-inner-spin-button,
+  .settings-card input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .settings-card input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   .settings-card .kvedit .v input:hover,
   .settings-card .kvedit .v select:hover { border-bottom-color: var(--line); }
   .settings-card .kvedit .v input:focus,
