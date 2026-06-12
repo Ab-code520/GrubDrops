@@ -20,18 +20,20 @@ A broken miner must never ship under a version tag.
 
 ### Release notes format
 
-Write the GitHub release notes as grouped sections — never a paragraph wall.
-Lead with a one-line **highlight**, then group the user-facing entries under
-these headers (omit any that are empty, keep this order):
+Never a paragraph wall. Lead with a one-line plain-text **highlight**, then a
+single ` ```diff ` fenced block so the +/- lines render green/red natively (no
+emoji background). Prefix every line by category and group like with like, in
+this order (omit empty categories):
 
-- **➕ Added** — new features (green plus)
-- **🔄 Changed** — behaviour / UX changes
-- **🐛 Fixed** — bug fixes (bug icon)
-- **➖ Removed** — removed features, flags, or paths (red minus)
+```diff
++ Added — new feature (renders green)
+🔄 Changed — behaviour / UX change
+🐛 Fixed — bug fix
+- Removed — removed feature, flag, or path (renders red)
+```
 
-Bold the subject of each bullet and write what changed + why it matters in plain
-user-facing language, not commit-speak. The notes are a curated subset of
-`[Unreleased]`, not the raw changelog.
+Keep each line user-facing — what changed + why it matters, not commit-speak.
+The notes are a curated subset of `[Unreleased]`, not the raw changelog.
 
 ## Architecture constraints
 
