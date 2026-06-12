@@ -24,10 +24,10 @@ Write the GitHub release notes as grouped sections — never a paragraph wall.
 Lead with a one-line **highlight**, then group the user-facing entries under
 these headers (omit any that are empty, keep this order):
 
-- **✨ Added** — new features
-- **🔧 Changed** — behaviour / UX changes
-- **🐛 Fixed** — bug fixes
-- **🗑️ Removed** — removed features, flags, or paths
+- **➕ Added** — new features (green plus)
+- **🔄 Changed** — behaviour / UX changes
+- **🐛 Fixed** — bug fixes (bug icon)
+- **➖ Removed** — removed features, flags, or paths (red minus)
 
 Bold the subject of each bullet and write what changed + why it matters in plain
 user-facing language, not commit-speak. The notes are a curated subset of
