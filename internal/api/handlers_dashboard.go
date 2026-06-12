@@ -70,12 +70,6 @@ type dashTelemetry struct {
 	TotalDrops     int    // total discovered drops across active campaigns (Y in "X / Y")
 	NextClaimETA   string // "00:13 h:m" or "—"
 	NextClaimName  string // "Wolf Helmet" or ""
-	NextPoll       string // countdown to the soonest upcoming progress poll, "42s" or "—"
-	// NextPollSecs is the raw seconds remaining to the soonest poll, seeded
-	// into the dashboard's data-next-poll-secs attribute so the inline JS
-	// can run a live client-side countdown between full page renders. -1
-	// when nothing is watching (NextPoll renders "—" and JS shows no tick).
-	NextPollSecs int
 }
 
 type dashMineCard struct {
@@ -753,12 +747,9 @@ func telemetryFrom(snaps []watcher.Snapshot) dashTelemetry {
 			nextName = s.BenefitName
 		}
 	}
-	pollSecs := nextPollSecsFrom(snaps, time.Now())
 	tele := dashTelemetry{
 		ActiveCamps:   distinctCampaigns(snaps),
 		NextClaimName: nextName,
-		NextPoll:      formatNextPoll(pollSecs),
-		NextPollSecs:  pollSecs,
 	}
 	if nextETA >= 0 {
 		tele.NextClaimETA = formatHM(nextETA)
@@ -855,45 +846,6 @@ func etaFrom(watched, required int) string {
 		return "claiming…"
 	}
 	return formatHM(time.Duration(rem) * time.Minute)
-}
-
-// nextPollSecsFrom returns the seconds remaining to the soonest upcoming
-// progress poll across active accounts. The poll cadence is locked to
-// 60s, so each watching account's next poll is LastPollAt+60s; we report
-// the minimum remaining. A poll that's already due (or an account that
-// hasn't polled yet) counts as 0. Returns -1 when nothing is watching, so
-// callers can render "—" and the client countdown can stay idle.
-func nextPollSecsFrom(snaps []watcher.Snapshot, now time.Time) int {
-	const cadence = 60 * time.Second
-	var soonest time.Duration = -1
-	for _, s := range snaps {
-		if s.State != "watching" {
-			continue
-		}
-		remain := time.Duration(0)
-		if !s.LastPollAt.IsZero() {
-			remain = s.LastPollAt.Add(cadence).Sub(now)
-			if remain < 0 {
-				remain = 0
-			}
-		}
-		if soonest < 0 || remain < soonest {
-			soonest = remain
-		}
-	}
-	if soonest < 0 {
-		return -1
-	}
-	return int(soonest / time.Second)
-}
-
-// formatNextPoll renders the next-poll seconds for the dashboard tile:
-// "42s", or "—" when nothing is watching (secs < 0).
-func formatNextPoll(secs int) string {
-	if secs < 0 {
-		return "—"
-	}
-	return fmt.Sprintf("%ds", secs)
 }
 
 func (d dashboardDeps) page(w http.ResponseWriter, r *http.Request) {
