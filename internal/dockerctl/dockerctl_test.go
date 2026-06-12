@@ -7,9 +7,9 @@ import (
 )
 
 type fakeEngine struct {
-	state     map[string]bool
-	startErr  error
-	stopErr   error
+	state      map[string]bool
+	startErr   error
+	stopErr    error
 	startCalls []string
 	stopCalls  []string
 }
