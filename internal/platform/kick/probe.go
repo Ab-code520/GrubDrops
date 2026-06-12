@@ -17,6 +17,7 @@ import (
 // daemon. Output goes to stdout.
 func Probe(ctx context.Context, sess platform.Session, categorySlug string) {
 	d := newHTTPDoer()
+	a := newAPI()
 
 	dump := func(label, base, path string) {
 		fmt.Printf("\n===== %s\nGET %s%s\n", label, base, path)
@@ -42,10 +43,65 @@ func Probe(ctx context.Context, sess platform.Session, categorySlug string) {
 	dump("DROPS CAMPAIGNS (authed)", dropsBase, "/api/v1/drops/campaigns")
 	// 2) Authed: progress — 403 means not enrolled/linked; 200 empty means enrolled-no-time.
 	dump("DROPS PROGRESS (authed)", dropsBase, "/api/v1/drops/progress")
-	// 3) Public: live channels in the campaign's category — what we COULD watch.
-	if categorySlug != "" {
-		dump("CATEGORY LIVESTREAMS (public)", discoveryBase, "/stream/livestreams/"+categorySlug)
+
+	// 2b) PARSED view: exactly what the DAEMON sees per campaign — the
+	// channel slugs it can choose from, plus the parsed progress rows. This
+	// is the ground-truth for "why did it pick channel X".
+	fmt.Printf("\n===== PARSED CAMPAIGNS (what the daemon sees)\n")
+	camps, cerr := a.Campaigns(ctx, sess)
+	if cerr != nil {
+		fmt.Printf("Campaigns() ERR: %v\n", cerr)
+	} else {
+		for _, c := range camps {
+			slugs := make([]string, 0, len(c.Channels))
+			for _, ch := range c.Channels {
+				slugs = append(slugs, fmt.Sprintf("%s(id=%s)", ch.Slug, ch.ID))
+			}
+			fmt.Printf("- campaign %q  game=%q status=%q channels=%v rewards=%d\n",
+				c.Name, c.Game, c.Status, slugs, len(c.Rewards))
+			for _, r := range c.Rewards {
+				fmt.Printf("    reward id=%s name=%q required=%d\n", r.ID, r.Name, r.RequiredMinutes)
+			}
+		}
 	}
-	// 4) Public: is the channel the watcher pinned to ("kick") actually live + what game.
-	dump("CHANNEL livestream: kick (public)", discoveryBase, "/api/v2/channels/kick/livestream")
+
+	fmt.Printf("\n===== PARSED PROGRESS (what the daemon sees)\n")
+	prog, perr := a.Progress(ctx, sess)
+	if perr != nil {
+		fmt.Printf("Progress() ERR: %v\n", perr)
+	} else if len(prog) == 0 {
+		fmt.Printf("(empty — no progress rows parsed)\n")
+	} else {
+		for _, p := range prog {
+			fmt.Printf("- benefit=%s minutes=%d claimed=%v\n", p.BenefitID, p.MinutesWatched, p.Claimed)
+		}
+	}
+
+	// 3) Public: the generic category directory feed (tier-2 discovery on the
+	// OLD code; this is where junk like pr8isegod/l-busch-l came from).
+	if categorySlug != "" {
+		dump("CATEGORY LIVESTREAMS (public, generic directory feed)", discoveryBase, "/stream/livestreams/"+categorySlug)
+	}
+
+	// 4) Liveness of each campaign channel + a couple known participating
+	// channels (oilrats, the official "kick") — exactly the ChannelLivestream
+	// probe ListEligibleChannels runs. Shows which campaign channels are live
+	// + their live category, so we can see why selection fell through.
+	probeSet := map[string]struct{}{"oilrats": {}, "kick": {}}
+	for _, c := range camps {
+		for _, ch := range c.Channels {
+			if ch.Slug != "" {
+				probeSet[ch.Slug] = struct{}{}
+			}
+		}
+	}
+	fmt.Printf("\n===== CHANNEL LIVENESS (campaign channels + oilrats/kick)\n")
+	for slug := range probeSet {
+		live, lsID, viewers, category, lerr := a.ChannelLivestream(ctx, sess, slug)
+		if lerr != nil {
+			fmt.Printf("- %-16s ERR: %v\n", slug, lerr)
+			continue
+		}
+		fmt.Printf("- %-16s live=%-5v category=%q viewers=%d livestreamID=%s\n", slug, live, category, viewers, lsID)
+	}
 }

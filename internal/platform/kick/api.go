@@ -263,6 +263,48 @@ func (a *api) Progress(ctx context.Context, sess platform.Session) ([]platform.P
 	return out, nil
 }
 
+// progressReward is one reward row from /drops/progress with the parent
+// campaign id attached — enough for the completed-claim sweep to know what to
+// POST and whether it is already done.
+type progressReward struct {
+	CampaignID string
+	RewardID   string
+	Name       string
+	Fraction   float64 // 0..1 watched toward this reward
+	Claimed    bool
+}
+
+// progressDetail returns every in-progress reward with its parent campaign id,
+// completion fraction, and claimed flag. Used by SweepCompletedClaims to find
+// rewards that hit 100% and aren't yet granted. AUTHED (bearer).
+func (a *api) progressDetail(ctx context.Context, sess platform.Session) ([]progressReward, error) {
+	body, status, err := a.d.do(ctx, sess, http.MethodGet, dropsBase+"/api/v1/drops/progress", nil)
+	if err != nil {
+		return nil, err
+	}
+	if status != 200 {
+		return nil, fmt.Errorf("drops progress: status %d body %s", status, truncate(body, 200))
+	}
+	camps, err := asList(body, "data", "progress", "drops")
+	if err != nil {
+		return nil, fmt.Errorf("decode progress: %w", err)
+	}
+	var out []progressReward
+	for _, camp := range camps {
+		campID := mstr(camp, "id", "campaign_id", "campaignId")
+		for _, rm := range mlist(camp, "rewards", "benefits", "drops", "tiers") {
+			out = append(out, progressReward{
+				CampaignID: campID,
+				RewardID:   mstr(rm, "id", "reward_id", "rewardId", "benefit_id", "benefitId"),
+				Name:       mstr(rm, "name", "title"),
+				Fraction:   mfloat(rm, "progress", "progress_fraction"),
+				Claimed:    mbool(rm, "claimed", "is_claimed", "isClaimed"),
+			})
+		}
+	}
+	return out, nil
+}
+
 // ---- tolerant JSON helpers -----------------------------------------------
 
 // asList extracts a list of objects from a response that may be a bare array or

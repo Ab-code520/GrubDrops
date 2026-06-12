@@ -281,10 +281,23 @@ func (b *Backend) ListEligibleChannels(ctx context.Context, s platform.Session, 
 	// unrelated games (smite, slots, …) — the bot would watch them for nothing.
 	b.mu.Lock()
 	pool := append([]kickChannel(nil), b.campaignChannels[c.ID]...)
-	if len(pool) == 0 {
+	openCampaign := len(pool) == 0
+	if openCampaign {
 		pool = append(pool, b.categoryChannels[c.Game]...)
 	}
 	b.mu.Unlock()
+
+	// For OPEN campaigns the pool is the whole category union, in arbitrary
+	// (campaign-discovery) order. Bias it toward known always-live,
+	// drops-enabled, high-participation broadcasters so the watcher lands on
+	// a reliable channel (oilrats streams Rust ~24/7 and participates in the
+	// open + Team-Oilrats campaigns, so watching it accrues the most at
+	// once). probeLive checks liveness anyway, so this is purely an ordering
+	// preference, not a hard pin. Restricted campaigns keep their own
+	// channel order untouched (only their listed channels can accrue).
+	if openCampaign {
+		pool = preferReliableChannels(pool)
+	}
 
 	if live := b.probeLive(ctx, s, c, pool); len(live) > 0 {
 		return live, nil
@@ -334,6 +347,47 @@ func (b *Backend) probeLive(ctx context.Context, s platform.Session, c platform.
 		live = append(live, platform.Stream{Channel: ch.Slug, ChannelID: id, ViewerCount: viewers, DropsEnabled: true})
 	}
 	return live
+}
+
+// reliableChannels are broadcasters known to stream their drops category
+// almost continuously with high viewer participation. When an OPEN campaign
+// (channels: []) lets us watch ANY participating live channel in the
+// category, we prefer these so the watcher reliably lands on a steady stream
+// instead of churning across short-lived broadcasters. Ranked best-first.
+// Currently Rust-focused (the active event); harmless for other categories
+// since none of these will be live + on-category there, so probeLive skips
+// them and the rest of the pool is used as-is.
+var reliableChannels = []string{"oilrats"}
+
+// preferReliableChannels returns the pool reordered so any reliableChannels
+// present come first (in reliableChannels rank order), followed by the rest
+// in their original order. It does not add or drop channels — probeLive still
+// gates on live + correct category.
+func preferReliableChannels(pool []kickChannel) []kickChannel {
+	if len(pool) < 2 {
+		return pool
+	}
+	rank := make(map[string]int, len(reliableChannels))
+	for i, s := range reliableChannels {
+		rank[s] = i
+	}
+	preferred := make([]kickChannel, 0, len(pool))
+	rest := make([]kickChannel, 0, len(pool))
+	// Collect preferred in rank order.
+	bySlug := map[string]kickChannel{}
+	for _, ch := range pool {
+		if _, ok := rank[strings.ToLower(ch.Slug)]; ok {
+			bySlug[strings.ToLower(ch.Slug)] = ch
+		} else {
+			rest = append(rest, ch)
+		}
+	}
+	for _, s := range reliableChannels {
+		if ch, ok := bySlug[s]; ok {
+			preferred = append(preferred, ch)
+		}
+	}
+	return append(preferred, rest...)
 }
 
 // mergeChannels appends src to dst, deduping by lowercased slug.
@@ -435,6 +489,47 @@ func (b *Backend) Claim(ctx context.Context, s platform.Session, drop platform.D
 	// drop.CampaignID is the campaign.
 	return b.api.Claim(ctx, s, drop.ID, drop.CampaignID)
 }
+
+// SweepCompletedClaims claims every Kick reward that has reached 100% and is
+// not yet granted. A single Kick watch advances many rewards at once (the open
+// "General Drops" tiers + the Team campaign for the channel being watched), but
+// the watcher tracks only one currentBenefit — so its own claim flow would miss
+// the siblings. This sweep closes that gap: it reads /drops/progress (which
+// carries each reward's fraction + claimed flag + parent campaign id) and POSTs
+// a claim for any reward at fraction>=1.0 that isn't already claimed.
+//
+// Kick appears to auto-grant some rewards (a reward observed at progress:1 came
+// back claimed:true with no bot claim in its history), but that is not
+// guaranteed for every campaign, so we POST regardless and treat a claim error
+// on an already-granted reward as benign (logged, not fatal). Already-claimed
+// rewards are skipped. Satisfies platform.CompletedSweeper.
+func (b *Backend) SweepCompletedClaims(ctx context.Context, s platform.Session) ([]platform.ClaimedReward, error) {
+	rewards, err := b.api.progressDetail(ctx, s)
+	if err != nil {
+		return nil, fmt.Errorf("kick sweep progress: %w", err)
+	}
+	var claimed []platform.ClaimedReward
+	for _, r := range rewards {
+		if r.Claimed || r.Fraction < 1.0 || r.RewardID == "" || r.CampaignID == "" {
+			continue
+		}
+		if err := b.api.Claim(ctx, s, r.RewardID, r.CampaignID); err != nil {
+			// Kick may have already auto-granted it server-side, in which
+			// case the claim POST can 4xx — that's not a real failure, the
+			// reward is the user's. Log and move on; the next progress poll
+			// will show claimed:true and stop re-attempting.
+			slog.Info("kick sweep: claim attempt returned error (likely already granted)",
+				"kind", "claim", "account", s.AccountID, "reward", r.RewardID, "name", r.Name, "err", err)
+			continue
+		}
+		slog.Info("kick sweep: claimed completed reward",
+			"kind", "claim", "account", s.AccountID, "reward", r.RewardID, "campaign", r.CampaignID, "name", r.Name)
+		claimed = append(claimed, platform.ClaimedReward{Game: "Rust", Title: r.Name})
+	}
+	return claimed, nil
+}
+
+var _ platform.CompletedSweeper = (*Backend)(nil)
 
 // FetchImage proxies a Kick CDN asset over the utls transport so the
 // browser can render it (files.kick.com 403s direct hotlinks). Returns

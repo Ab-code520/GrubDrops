@@ -321,3 +321,55 @@ func TestKickBackend_WSWatchHandle_DeadConn(t *testing.T) {
 	assert.Error(t, b.Heartbeat(context.Background(), h), "dead WS conn -> heartbeat error")
 	assert.NoError(t, b.StopWatch(context.Background(), h))
 }
+
+// preferReliableChannels moves a known always-live broadcaster (oilrats) to
+// the front of an OPEN campaign's category pool so the watcher lands on it,
+// without adding/dropping channels or disturbing the rest's order.
+func TestPreferReliableChannels(t *testing.T) {
+	pool := []kickChannel{
+		{Slug: "welyn", ID: "1"},
+		{Slug: "oilrats", ID: "2"},
+		{Slug: "trausi", ID: "3"},
+	}
+	got := preferReliableChannels(pool)
+	require.Len(t, got, 3)
+	assert.Equal(t, "oilrats", got[0].Slug, "oilrats should sort first")
+	assert.Equal(t, "welyn", got[1].Slug, "rest keep original order")
+	assert.Equal(t, "trausi", got[2].Slug)
+
+	// No reliable channel present -> unchanged.
+	none := []kickChannel{{Slug: "a"}, {Slug: "b"}}
+	assert.Equal(t, none, preferReliableChannels(none))
+}
+
+// SweepCompletedClaims claims every reward at 100% that isn't already granted,
+// skips in-progress and already-claimed rewards, and posts reward_id +
+// campaign_id per claim.
+func TestKickBackend_SweepCompletedClaims(t *testing.T) {
+	f := &fakeDoer{resp: map[string]fakeResp{
+		"https://web.kick.com/api/v1/drops/progress": {200, `{"data":[
+			{"id":"camp1","rewards":[
+				{"id":"done-unclaimed","name":"Box","progress":1,"claimed":false,"required_units":120},
+				{"id":"already-claimed","name":"Crossbow","progress":1,"claimed":true,"required_units":120},
+				{"id":"in-progress","name":"Door","progress":0.5,"claimed":false,"required_units":120}
+			]}
+		],"message":"Success"}`},
+		"https://web.kick.com/api/v1/drops/claim": {200, `{}`},
+	}}
+	b := withFake(f)
+	claimed, err := b.SweepCompletedClaims(context.Background(), sess("acc1"))
+	require.NoError(t, err)
+	// Only the completed-but-unclaimed reward is claimed.
+	require.Len(t, claimed, 1)
+	assert.Equal(t, "Box", claimed[0].Title)
+	// Exactly one claim POST fired, for the right reward+campaign.
+	var claimCalls int
+	for _, c := range f.calls {
+		if c.path == "https://web.kick.com/api/v1/drops/claim" {
+			claimCalls++
+			assert.Contains(t, c.body, `"reward_id":"done-unclaimed"`)
+			assert.Contains(t, c.body, `"campaign_id":"camp1"`)
+		}
+	}
+	assert.Equal(t, 1, claimCalls, "exactly one completed reward should be claimed")
+}
