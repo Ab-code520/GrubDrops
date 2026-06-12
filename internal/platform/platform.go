@@ -127,6 +127,21 @@ type CurrentSessionChecker interface {
 	CurrentSession(ctx context.Context, s Session) (CurrentSession, error)
 }
 
+// CompletedSweeper is an optional backend capability for platforms where a
+// SINGLE watch session accrues progress toward MANY rewards at once (Kick:
+// watching one live category channel advances every open same-category
+// campaign + any Team campaign that channel belongs to). The watcher tracks
+// only one currentBenefit, so without this it would miss sibling rewards that
+// complete in the same window. The watcher calls SweepCompletedClaims on each
+// progress poll; the backend claims every reward that has reached 100% and is
+// not already granted (POSTing the claim where the platform needs it, or
+// no-op'ing when the platform auto-grants), and returns what it claimed so the
+// watcher can record it. Backends where each watch maps to one reward (Twitch)
+// do not implement this.
+type CompletedSweeper interface {
+	SweepCompletedClaims(ctx context.Context, s Session) ([]ClaimedReward, error)
+}
+
 type Registry struct {
 	backends map[string]Backend
 }

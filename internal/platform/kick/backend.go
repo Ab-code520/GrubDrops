@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aalejandrofer/grubdrops/internal/auth/browser"
+	"github.com/aalejandrofer/grubdrops/internal/dockerctl"
 	"github.com/aalejandrofer/grubdrops/internal/platform"
 )
 
@@ -23,6 +24,24 @@ type Backend struct {
 	c   *browser.Client
 	api *api
 
+	// sidecars manages on-demand start/stop + per-account client pinning for
+	// the IVS watch path. clientByName dials one gRPC client per derived
+	// container name (lazy connect, survives container restarts).
+	sidecars     *sidecarRegistry
+	clientByName map[string]*browser.Client
+	clientMu     sync.Mutex
+	sidecarPort  int
+
+	// browserWatch, when true AND c != nil, routes StartWatch/Heartbeat/
+	// StopWatch to the chromedp sidecar so a real IVS <video> session
+	// accrues drop watch-time. The pure-HTTP viewer-WS (openWatch) does
+	// NOT accrue (proven 2026-06-12), so this is the only credit-earning
+	// watch path. All other calls (campaigns/progress/claim/discovery)
+	// stay on the utls HTTP transport regardless. When false, the
+	// non-accruing WS path is used (kept as a fallback / for envs with no
+	// sidecar).
+	browserWatch bool
+
 	mu               sync.Mutex
 	handleByAcc      map[string]string // accountID -> watch handle
 	channelsByAcc    map[string][]string
@@ -32,23 +51,87 @@ type Backend struct {
 
 var _ platform.Backend = (*Backend)(nil)
 
-// New builds the Kick backend. The browser.Client may be nil (data flows over
-// the utls HTTP client); it's kept for the interactive-login path only.
-func New(c *browser.Client) *Backend {
-	return &Backend{
+// New builds the Kick backend. c is the login client (data flows over the utls
+// HTTP client; c is kept for the interactive-login path). ctl controls the
+// per-account chromedp sidecar containers on demand (nil = degrade to
+// always-on). template/port derive each account's container name + gRPC port;
+// idleGrace is how long an account may go without watch activity before its
+// sidecar is reaped.
+func New(c *browser.Client, ctl dockerctl.Controller, template string, port int, idleGrace time.Duration) *Backend {
+	b := &Backend{
 		c:                c,
 		api:              newAPI(),
+		sidecars:         newSidecarRegistry(ctl, template, port, idleGrace),
+		clientByName:     map[string]*browser.Client{},
+		sidecarPort:      port,
 		handleByAcc:      map[string]string{},
 		channelsByAcc:    map[string][]string{},
 		campaignChannels: map[string][]kickChannel{},
 		categoryChannels: map[string][]kickChannel{},
 	}
+	if ctl != nil {
+		go b.sidecars.runReaper(context.Background())
+	}
+	return b
 }
 
-// kickWatch is stored in WatchHandle.Internal; it owns the viewer-WS presence
-// that accrues drops watch-time for the channel.
+// RegisterSidecar maps an account to its username-derived sidecar. Called at
+// startup (per-account build loop) and on login.
+func (b *Backend) RegisterSidecar(accountID, username string) {
+	b.sidecars.register(accountID, username)
+}
+
+// watchClientForName returns (dialing once) the gRPC client for a container
+// name. Lazy connect means a stopped container is fine until first RPC.
+func (b *Backend) watchClientForName(name string) (*browser.Client, error) {
+	b.clientMu.Lock()
+	defer b.clientMu.Unlock()
+	if cl, ok := b.clientByName[name]; ok {
+		return cl, nil
+	}
+	target := name
+	if b.sidecarPort > 0 {
+		target = fmt.Sprintf("%s:%d", name, b.sidecarPort)
+	}
+	cl, err := browser.Dial(target)
+	if err != nil {
+		return nil, err
+	}
+	b.clientByName[name] = cl
+	return cl, nil
+}
+
+// EnableBrowserWatch switches StartWatch/Heartbeat/StopWatch onto the
+// chromedp sidecar (a real, playing IVS <video> per watch — the only path
+// that accrues Kick drop watch-time). No-op without a sidecar client: the
+// backend logs and stays on the (non-accruing) viewer-WS path so it never
+// silently drops to a broken watch. Call once at construction, before the
+// watcher starts.
+func (b *Backend) EnableBrowserWatch() {
+	if b.c == nil {
+		slog.Warn("kick: browser-watch requested but no sidecar client configured; staying on (non-accruing) viewer-WS")
+		return
+	}
+	b.browserWatch = true
+}
+
+// kickWatch is stored in WatchHandle.Internal for the (legacy, non-accruing)
+// viewer-WS presence path.
 type kickWatch struct {
 	conn *watchConn
+}
+
+// kickBrowserWatch is stored in WatchHandle.Internal for the sidecar
+// IVS-video watch path. It carries the opaque sidecar tab handle so
+// Heartbeat/StopWatch can target the same browser tab.
+type kickBrowserWatch struct {
+	handle string
+	// client is the specific sidecar this watch's tab lives in, so
+	// Heartbeat/StopWatch target the same Chrome that opened it.
+	client *browser.Client
+	// accountID lets Heartbeat bump the registry's lastActive so the
+	// reaper keeps this account's sidecar up while it's actively watching.
+	accountID string
 }
 
 func (b *Backend) Name() string { return "kick" }
@@ -249,10 +332,23 @@ func (b *Backend) ListEligibleChannels(ctx context.Context, s platform.Session, 
 	// unrelated games (smite, slots, …) — the bot would watch them for nothing.
 	b.mu.Lock()
 	pool := append([]kickChannel(nil), b.campaignChannels[c.ID]...)
-	if len(pool) == 0 {
+	openCampaign := len(pool) == 0
+	if openCampaign {
 		pool = append(pool, b.categoryChannels[c.Game]...)
 	}
 	b.mu.Unlock()
+
+	// For OPEN campaigns the pool is the whole category union, in arbitrary
+	// (campaign-discovery) order. Bias it toward known always-live,
+	// drops-enabled, high-participation broadcasters so the watcher lands on
+	// a reliable channel (oilrats streams Rust ~24/7 and participates in the
+	// open + Team-Oilrats campaigns, so watching it accrues the most at
+	// once). probeLive checks liveness anyway, so this is purely an ordering
+	// preference, not a hard pin. Restricted campaigns keep their own
+	// channel order untouched (only their listed channels can accrue).
+	if openCampaign {
+		pool = preferReliableChannels(pool)
+	}
 
 	if live := b.probeLive(ctx, s, c, pool); len(live) > 0 {
 		return live, nil
@@ -304,6 +400,47 @@ func (b *Backend) probeLive(ctx context.Context, s platform.Session, c platform.
 	return live
 }
 
+// reliableChannels are broadcasters known to stream their drops category
+// almost continuously with high viewer participation. When an OPEN campaign
+// (channels: []) lets us watch ANY participating live channel in the
+// category, we prefer these so the watcher reliably lands on a steady stream
+// instead of churning across short-lived broadcasters. Ranked best-first.
+// Currently Rust-focused (the active event); harmless for other categories
+// since none of these will be live + on-category there, so probeLive skips
+// them and the rest of the pool is used as-is.
+var reliableChannels = []string{"oilrats"}
+
+// preferReliableChannels returns the pool reordered so any reliableChannels
+// present come first (in reliableChannels rank order), followed by the rest
+// in their original order. It does not add or drop channels — probeLive still
+// gates on live + correct category.
+func preferReliableChannels(pool []kickChannel) []kickChannel {
+	if len(pool) < 2 {
+		return pool
+	}
+	rank := make(map[string]int, len(reliableChannels))
+	for i, s := range reliableChannels {
+		rank[s] = i
+	}
+	preferred := make([]kickChannel, 0, len(pool))
+	rest := make([]kickChannel, 0, len(pool))
+	// Collect preferred in rank order.
+	bySlug := map[string]kickChannel{}
+	for _, ch := range pool {
+		if _, ok := rank[strings.ToLower(ch.Slug)]; ok {
+			bySlug[strings.ToLower(ch.Slug)] = ch
+		} else {
+			rest = append(rest, ch)
+		}
+	}
+	for _, s := range reliableChannels {
+		if ch, ok := bySlug[s]; ok {
+			preferred = append(preferred, ch)
+		}
+	}
+	return append(preferred, rest...)
+}
+
 // mergeChannels appends src to dst, deduping by lowercased slug.
 func mergeChannels(dst, src []kickChannel) []kickChannel {
 	seen := make(map[string]struct{}, len(dst))
@@ -329,8 +466,41 @@ func (b *Backend) InventoryProgress(ctx context.Context, s platform.Session) ([]
 }
 
 func (b *Backend) StartWatch(ctx context.Context, s platform.Session, stream platform.Stream) (platform.WatchHandle, error) {
-	// Watching = a viewer-WS presence sending channel_handshake for the
-	// channel (accrues drops watch-time). stream.ChannelID is the CHANNEL id.
+	// Browser-watch path: drive a real, playing IVS <video> in the sidecar
+	// — the ONLY path that accrues Kick drop watch-time. The sidecar needs
+	// the channel SLUG (it navigates kick.com/<slug>) plus the session
+	// cookies, which it injects before navigation.
+	if b.browserWatch && b.c != nil {
+		name := b.sidecars.nameFor(s.AccountID)
+		if name == "" {
+			return platform.WatchHandle{}, fmt.Errorf("kick start watch: no sidecar for account %s", s.AccountID)
+		}
+		cl, err := b.watchClientForName(name)
+		if err != nil {
+			return platform.WatchHandle{}, fmt.Errorf("kick start watch: dial sidecar %s: %w", name, err)
+		}
+		// Start the container on demand + wait for readiness.
+		if err := b.sidecars.ensureUp(ctx, s.AccountID, func(c context.Context) error {
+			_, e := cl.Heartbeat(c, "") // nil error == gRPC server reachable
+			return e
+		}); err != nil {
+			return platform.WatchHandle{}, fmt.Errorf("kick start watch: sidecar up %s: %w", name, err)
+		}
+		ks, err := decodeSession(s)
+		if err != nil {
+			return platform.WatchHandle{}, fmt.Errorf("kick start watch: decode session: %w", err)
+		}
+		handle, err := cl.StartWatch(ctx, toProto(ks), stream.Channel)
+		if err != nil {
+			return platform.WatchHandle{}, fmt.Errorf("kick start watch (browser) %s: %w", stream.Channel, err)
+		}
+		b.sidecars.touch(s.AccountID)
+		return platform.WatchHandle{Channel: stream.Channel, Internal: kickBrowserWatch{handle: handle, client: cl, accountID: s.AccountID}}, nil
+	}
+
+	// Legacy viewer-WS presence path (NON-ACCRUING — kept only as a
+	// fallback when no sidecar is configured). stream.ChannelID is the
+	// CHANNEL id used in the channel_handshake.
 	cookieHeader := cookieHeaderForSession(s)
 	if cookieHeader == "" {
 		return platform.WatchHandle{}, fmt.Errorf("kick: session has no cookies")
@@ -342,25 +512,44 @@ func (b *Backend) StartWatch(ctx context.Context, s platform.Session, stream pla
 	return platform.WatchHandle{Channel: stream.Channel, Internal: kickWatch{conn: wc}}, nil
 }
 
-func (b *Backend) Heartbeat(_ context.Context, h platform.WatchHandle) error {
-	w, ok := h.Internal.(kickWatch)
-	if !ok {
+func (b *Backend) Heartbeat(ctx context.Context, h platform.WatchHandle) error {
+	switch w := h.Internal.(type) {
+	case kickBrowserWatch:
+		alive, err := w.client.Heartbeat(ctx, w.handle)
+		if err != nil {
+			return fmt.Errorf("kick heartbeat (browser) %q: %w", h.Channel, err)
+		}
+		if !alive {
+			return fmt.Errorf("kick: browser watch not playing for %q", h.Channel)
+		}
+		b.sidecars.touch(w.accountID)
+		return nil
+	case kickWatch:
+		// The viewer-WS writer goroutine sends channel_handshake + ping on its
+		// own schedule; Heartbeat just confirms the presence is still alive so
+		// the watcher swaps channels if it dropped.
+		if !w.conn.Alive() {
+			return fmt.Errorf("kick: viewer websocket closed for %q", h.Channel)
+		}
+		return nil
+	default:
 		return fmt.Errorf("kick: invalid watch handle")
 	}
-	// The viewer-WS writer goroutine sends channel_handshake + ping on its own
-	// schedule; Heartbeat just confirms the presence is still alive so the
-	// watcher swaps channels if it dropped.
-	if !w.conn.Alive() {
-		return fmt.Errorf("kick: viewer websocket closed for %q", h.Channel)
-	}
-	return nil
 }
 
-func (b *Backend) StopWatch(_ context.Context, h platform.WatchHandle) error {
-	if w, ok := h.Internal.(kickWatch); ok {
+func (b *Backend) StopWatch(ctx context.Context, h platform.WatchHandle) error {
+	switch w := h.Internal.(type) {
+	case kickBrowserWatch:
+		if err := w.client.StopWatch(ctx, w.handle); err != nil {
+			return fmt.Errorf("kick stop watch (browser) %q: %w", h.Channel, err)
+		}
+		return nil
+	case kickWatch:
 		w.conn.Close()
+		return nil
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (b *Backend) Claim(ctx context.Context, s platform.Session, drop platform.DropBenefit) error {
@@ -368,6 +557,47 @@ func (b *Backend) Claim(ctx context.Context, s platform.Session, drop platform.D
 	// drop.CampaignID is the campaign.
 	return b.api.Claim(ctx, s, drop.ID, drop.CampaignID)
 }
+
+// SweepCompletedClaims claims every Kick reward that has reached 100% and is
+// not yet granted. A single Kick watch advances many rewards at once (the open
+// "General Drops" tiers + the Team campaign for the channel being watched), but
+// the watcher tracks only one currentBenefit — so its own claim flow would miss
+// the siblings. This sweep closes that gap: it reads /drops/progress (which
+// carries each reward's fraction + claimed flag + parent campaign id) and POSTs
+// a claim for any reward at fraction>=1.0 that isn't already claimed.
+//
+// Kick appears to auto-grant some rewards (a reward observed at progress:1 came
+// back claimed:true with no bot claim in its history), but that is not
+// guaranteed for every campaign, so we POST regardless and treat a claim error
+// on an already-granted reward as benign (logged, not fatal). Already-claimed
+// rewards are skipped. Satisfies platform.CompletedSweeper.
+func (b *Backend) SweepCompletedClaims(ctx context.Context, s platform.Session) ([]platform.ClaimedReward, error) {
+	rewards, err := b.api.progressDetail(ctx, s)
+	if err != nil {
+		return nil, fmt.Errorf("kick sweep progress: %w", err)
+	}
+	var claimed []platform.ClaimedReward
+	for _, r := range rewards {
+		if r.Claimed || r.Fraction < 1.0 || r.RewardID == "" || r.CampaignID == "" {
+			continue
+		}
+		if err := b.api.Claim(ctx, s, r.RewardID, r.CampaignID); err != nil {
+			// Kick may have already auto-granted it server-side, in which
+			// case the claim POST can 4xx — that's not a real failure, the
+			// reward is the user's. Log and move on; the next progress poll
+			// will show claimed:true and stop re-attempting.
+			slog.Info("kick sweep: claim attempt returned error (likely already granted)",
+				"kind", "claim", "account", s.AccountID, "reward", r.RewardID, "name", r.Name, "err", err)
+			continue
+		}
+		slog.Info("kick sweep: claimed completed reward",
+			"kind", "claim", "account", s.AccountID, "reward", r.RewardID, "campaign", r.CampaignID, "name", r.Name)
+		claimed = append(claimed, platform.ClaimedReward{Game: "Rust", Title: r.Name})
+	}
+	return claimed, nil
+}
+
+var _ platform.CompletedSweeper = (*Backend)(nil)
 
 // FetchImage proxies a Kick CDN asset over the utls transport so the
 // browser can render it (files.kick.com 403s direct hotlinks). Returns

@@ -3,6 +3,7 @@ package kick
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +46,7 @@ func (f *fakeDoer) getRaw(_ context.Context, rawURL string) ([]byte, string, int
 }
 
 func withFake(f *fakeDoer) *Backend {
-	b := New(nil)
+	b := New(nil, nil, "grubdrops-browser-{slug}", 9090, 10*time.Minute)
 	b.api = &api{d: f}
 	return b
 }
@@ -220,7 +221,7 @@ func TestKickBackend_RejectsWrongCategoryChannel(t *testing.T) {
 }
 
 func TestKickBackend_DeviceLoginRejected(t *testing.T) {
-	b := New(nil)
+	b := New(nil, nil, "grubdrops-browser-{slug}", 9090, 10*time.Minute)
 	_, err := b.StartDeviceLogin(context.Background())
 	require.Error(t, err)
 }
@@ -228,7 +229,7 @@ func TestKickBackend_DeviceLoginRejected(t *testing.T) {
 // --- channel registration (manual fallback) — pure, no transport ----------
 
 func TestKickBackend_RegisterChannelExposesInList(t *testing.T) {
-	b := New(nil)
+	b := New(nil, nil, "grubdrops-browser-{slug}", 9090, 10*time.Minute)
 	b.RegisterChannel("acc1", "fakestreamer")
 	// Empty campaign so the live-discovery paths skip and we hit the manual
 	// fallback (no cookies in the session anyway).
@@ -239,7 +240,7 @@ func TestKickBackend_RegisterChannelExposesInList(t *testing.T) {
 }
 
 func TestKickBackend_RegisterChannelsMulti(t *testing.T) {
-	b := New(nil)
+	b := New(nil, nil, "grubdrops-browser-{slug}", 9090, 10*time.Minute)
 	b.RegisterChannels("acc1", []string{"alice", "bob", "carol"})
 	out, err := b.ListEligibleChannels(context.Background(), platform.Session{AccountID: "acc1"}, platform.Campaign{})
 	require.NoError(t, err)
@@ -252,7 +253,7 @@ func TestKickBackend_RegisterChannelsMulti(t *testing.T) {
 }
 
 func TestKickBackend_ListEligibleChannelsScopedToAccount(t *testing.T) {
-	b := New(nil)
+	b := New(nil, nil, "grubdrops-browser-{slug}", 9090, 10*time.Minute)
 	b.RegisterChannels("acc1", []string{"alice", "bob"})
 	b.RegisterChannels("acc2", []string{"carol"})
 
@@ -271,16 +272,105 @@ func TestKickBackend_ListEligibleChannelsScopedToAccount(t *testing.T) {
 }
 
 func TestKickBackend_RegisterChannels_DedupesAndTrims(t *testing.T) {
-	b := New(nil)
+	b := New(nil, nil, "grubdrops-browser-{slug}", 9090, 10*time.Minute)
 	b.RegisterChannels("acc1", []string{" alice ", "Alice", "bob", "", " bob ", "carol"})
 	assert.Equal(t, []string{"alice", "bob", "carol"}, b.Channels("acc1"))
 }
 
 func TestKickBackend_AllowedChannelCountDistinct(t *testing.T) {
-	b := New(nil)
+	b := New(nil, nil, "grubdrops-browser-{slug}", 9090, 10*time.Minute)
 	assert.Equal(t, 0, b.AllowedChannelCount("anything"))
 	b.RegisterChannel("acc1", "alice")
 	b.RegisterChannel("acc2", "bob")
 	b.RegisterChannel("acc3", "alice")
 	assert.Equal(t, 2, b.AllowedChannelCount("kick-inventory"))
+}
+
+// EnableBrowserWatch is a no-op (and must NOT flip browserWatch) when the
+// backend has no sidecar client — otherwise StartWatch would dereference a
+// nil client. With no sidecar the backend stays on the viewer-WS path.
+func TestKickBackend_EnableBrowserWatch_NilClientNoOp(t *testing.T) {
+	b := New(nil, nil, "grubdrops-browser-{slug}", 9090, 10*time.Minute)
+	b.EnableBrowserWatch()
+	assert.False(t, b.browserWatch, "browser-watch must stay off without a sidecar client")
+}
+
+// Heartbeat/StopWatch dispatch on the watch-handle's concrete Internal
+// type. An unknown/zero handle is an error for Heartbeat (so the watcher
+// re-picks) and a benign no-op for StopWatch (idempotent teardown).
+func TestKickBackend_WatchHandleDispatch(t *testing.T) {
+	b := New(nil, nil, "grubdrops-browser-{slug}", 9090, 10*time.Minute)
+
+	// Unknown handle type -> Heartbeat errors, StopWatch is a no-op.
+	bad := platform.WatchHandle{Channel: "x", Internal: struct{}{}}
+	assert.Error(t, b.Heartbeat(context.Background(), bad))
+	assert.NoError(t, b.StopWatch(context.Background(), bad))
+
+	// Zero handle (Internal == nil) behaves the same.
+	zero := platform.WatchHandle{Channel: "x"}
+	assert.Error(t, b.Heartbeat(context.Background(), zero))
+	assert.NoError(t, b.StopWatch(context.Background(), zero))
+}
+
+// A WS watch handle whose connection has been closed reports a heartbeat
+// error so the watcher swaps channels. StopWatch on it is safe.
+func TestKickBackend_WSWatchHandle_DeadConn(t *testing.T) {
+	b := New(nil, nil, "grubdrops-browser-{slug}", 9090, 10*time.Minute)
+	wc := &watchConn{}
+	wc.alive.Store(false)
+	h := platform.WatchHandle{Channel: "x", Internal: kickWatch{conn: wc}}
+	assert.Error(t, b.Heartbeat(context.Background(), h), "dead WS conn -> heartbeat error")
+	assert.NoError(t, b.StopWatch(context.Background(), h))
+}
+
+// preferReliableChannels moves a known always-live broadcaster (oilrats) to
+// the front of an OPEN campaign's category pool so the watcher lands on it,
+// without adding/dropping channels or disturbing the rest's order.
+func TestPreferReliableChannels(t *testing.T) {
+	pool := []kickChannel{
+		{Slug: "welyn", ID: "1"},
+		{Slug: "oilrats", ID: "2"},
+		{Slug: "trausi", ID: "3"},
+	}
+	got := preferReliableChannels(pool)
+	require.Len(t, got, 3)
+	assert.Equal(t, "oilrats", got[0].Slug, "oilrats should sort first")
+	assert.Equal(t, "welyn", got[1].Slug, "rest keep original order")
+	assert.Equal(t, "trausi", got[2].Slug)
+
+	// No reliable channel present -> unchanged.
+	none := []kickChannel{{Slug: "a"}, {Slug: "b"}}
+	assert.Equal(t, none, preferReliableChannels(none))
+}
+
+// SweepCompletedClaims claims every reward at 100% that isn't already granted,
+// skips in-progress and already-claimed rewards, and posts reward_id +
+// campaign_id per claim.
+func TestKickBackend_SweepCompletedClaims(t *testing.T) {
+	f := &fakeDoer{resp: map[string]fakeResp{
+		"https://web.kick.com/api/v1/drops/progress": {200, `{"data":[
+			{"id":"camp1","rewards":[
+				{"id":"done-unclaimed","name":"Box","progress":1,"claimed":false,"required_units":120},
+				{"id":"already-claimed","name":"Crossbow","progress":1,"claimed":true,"required_units":120},
+				{"id":"in-progress","name":"Door","progress":0.5,"claimed":false,"required_units":120}
+			]}
+		],"message":"Success"}`},
+		"https://web.kick.com/api/v1/drops/claim": {200, `{}`},
+	}}
+	b := withFake(f)
+	claimed, err := b.SweepCompletedClaims(context.Background(), sess("acc1"))
+	require.NoError(t, err)
+	// Only the completed-but-unclaimed reward is claimed.
+	require.Len(t, claimed, 1)
+	assert.Equal(t, "Box", claimed[0].Title)
+	// Exactly one claim POST fired, for the right reward+campaign.
+	var claimCalls int
+	for _, c := range f.calls {
+		if c.path == "https://web.kick.com/api/v1/drops/claim" {
+			claimCalls++
+			assert.Contains(t, c.body, `"reward_id":"done-unclaimed"`)
+			assert.Contains(t, c.body, `"campaign_id":"camp1"`)
+		}
+	}
+	assert.Equal(t, 1, claimCalls, "exactly one completed reward should be claimed")
 }

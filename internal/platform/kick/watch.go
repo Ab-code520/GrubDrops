@@ -125,8 +125,12 @@ func (w *watchConn) Close() {
 		return
 	}
 	w.alive.Store(false)
-	w.cancel()
-	_ = w.conn.Close()
+	if w.cancel != nil {
+		w.cancel()
+	}
+	if w.conn != nil {
+		_ = w.conn.Close()
+	}
 }
 
 // fetchViewerToken GETs the per-session viewer token over a Chrome-fingerprinted

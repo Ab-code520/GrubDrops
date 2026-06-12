@@ -91,6 +91,23 @@ func New(ctx context.Context) *Browser {
 
 		chromedp.Flag("lang", "en-US,en;q=0.9"),
 		chromedp.UserAgent(stealthUA),
+
+		// Video playback for the Kick IVS watch path. Without an explicit
+		// autoplay grant, Chrome's autoplay policy blocks <video>.play() in a
+		// headless tab that has no user gesture, so the player never advances
+		// and Kick credits no watch-time. Muting the audio both satisfies the
+		// "muted autoplay is always allowed" rule and keeps the tab cheap.
+		chromedp.Flag("autoplay-policy", "no-user-gesture-required"),
+		chromedp.Flag("mute-audio", true),
+	}
+
+	// In the container the runtime image sets CHROME_BIN to the
+	// google-chrome-stable path (the codec-enabled build). Pass it explicitly
+	// so chromedp launches that binary rather than probing PATH and possibly
+	// finding a codec-less chromium. Outside the container CHROME_BIN is
+	// unset and chromedp falls back to its normal PATH probe.
+	if bin := os.Getenv("CHROME_BIN"); bin != "" {
+		opts = append(opts, chromedp.ExecPath(bin))
 	}
 	allocCtx, cancel := chromedp.NewExecAllocator(ctx, opts...)
 	return &Browser{
@@ -145,10 +162,16 @@ const StealthScript = `
     };
   }
 
-  // Patch navigator.plugins to look like a real browser
-  try {
-    Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-  } catch(e) {}
+  // NOTE: do NOT override navigator.plugins. Chrome's "new" headless mode
+  // already exposes a genuine 5-entry PluginArray (the PDF-viewer set:
+  // "PDF Viewer", "Chrome PDF Viewer", ...) that is indistinguishable from
+  // headed Chrome — spoofing it is both unnecessary AND actively harmful.
+  // A previous override returned a plain Array [1,2,3,4,5] (wrong prototype,
+  // fake names): that made the browser MORE bot-detectable than the real
+  // value, and — the load-bearing bug — it broke Kick's AWS IVS web player
+  // environment probe, so the <video> never attached a MediaSource
+  // (readyState stuck at 0, currentTime never advanced, zero watch-credit).
+  // Leaving the real PluginArray in place fixes IVS playback in headless.
 
   // Patch navigator.languages
   try {

@@ -59,6 +59,7 @@ func TestLoad_DefaultsApplied(t *testing.T) {
 	assert.Equal(t, "/data/miner.db", cfg.DBPath)
 	assert.Equal(t, "", cfg.DiscordWebhookURL)
 	assert.Equal(t, "", cfg.BrowserURL)
+	assert.False(t, cfg.KickBrowserWatch, "kick browser-watch off by default")
 }
 
 func TestLoad_Overrides(t *testing.T) {
@@ -67,6 +68,7 @@ func TestLoad_Overrides(t *testing.T) {
 	t.Setenv("GRUB_DB_PATH", "/tmp/m.db")
 	t.Setenv("GRUB_DISCORD_WEBHOOK", "https://discord.example/wh/x")
 	t.Setenv("GRUB_BROWSER_URL", "browser:9090")
+	t.Setenv("GRUB_KICK_BROWSER_WATCH", "1")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -74,4 +76,5 @@ func TestLoad_Overrides(t *testing.T) {
 	assert.Equal(t, "/tmp/m.db", cfg.DBPath)
 	assert.Equal(t, "https://discord.example/wh/x", cfg.DiscordWebhookURL)
 	assert.Equal(t, "browser:9090", cfg.BrowserURL)
+	assert.True(t, cfg.KickBrowserWatch)
 }

@@ -21,7 +21,8 @@ type Kick struct {
 	b *Browser
 
 	mu       sync.Mutex
-	authTabs map[string]string // account_id -> persistent tab handle
+	authTabs map[string]string      // account_id -> persistent tab handle
+	watches  map[string]*watchState // watch handle -> liveness/stall state
 }
 
 func NewKick(b *Browser) *Kick {
@@ -182,6 +183,12 @@ func parseKickUsername(raw []byte) (string, bool) {
 
 // OpenStream opens kick.com/<channel> in a new tab; the HLS player
 // auto-loads on the page and watch time accrues as long as the tab stays open.
+//
+// DEPRECATED for the watch path: this is fire-and-forget (navigate + a
+// fixed sleep) and does NOT ensure the IVS <video> is actually playing,
+// muted, or kept alive across ad breaks. Use OpenStreamWatch (kick_watch.go)
+// for credit-earning watch sessions; the StartWatch RPC routes there.
+// Retained for any caller that only needs a passive page load.
 func (k *Kick) OpenStream(channel string, session *pb.KickSession) (string, error) {
 	handle, ctx, err := k.b.OpenTab()
 	if err != nil {

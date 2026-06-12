@@ -1168,6 +1168,25 @@ func (w *Watcher) tickWatch(ctx context.Context) error {
 		slog.Error("watcher inventory failed", "kind", "error", "account", w.cfg.AccountID, "err", err)
 		return fmt.Errorf("inventory: %w", err)
 	}
+	// Multi-reward sweep (Kick): one watch session advances many rewards at
+	// once, but the loop below only acts on currentBenefit. Claim every
+	// reward that has independently hit 100% so sibling rewards (the open
+	// "General Drops" tiers + the watched channel's Team campaign) aren't
+	// stranded waiting for their turn as currentBenefit. No-op for backends
+	// that don't implement CompletedSweeper (Twitch).
+	if sweeper, ok := w.cfg.Backend.(platform.CompletedSweeper); ok {
+		if swept, serr := sweeper.SweepCompletedClaims(ctx, w.cfg.Session); serr != nil {
+			slog.Debug("watcher completed-claim sweep failed", "account", w.cfg.AccountID, "err", serr)
+		} else {
+			for _, cr := range swept {
+				// The claims-table row is written by pickCampaign's reconcile
+				// (it has the proper benefit id once claimed flips true on the
+				// next discovery cycle); this is just the operator-visible log.
+				slog.Info("watcher swept completed reward", "kind", "claim", "account", w.cfg.AccountID, "title", cr.Title)
+			}
+		}
+	}
+
 	matched := false
 	for _, p := range progress {
 		if p.BenefitID == benefit.ID {
