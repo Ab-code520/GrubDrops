@@ -44,8 +44,8 @@ func newKickLoginDeps(t *testing.T, accID string) (*loginKickDeps, *store.Sessio
 }
 
 // parseKickChannels must accept the various separator styles operators
-// paste into the form. The web template advertises "comma/space-
-// separated"; the helper CLI joins with commas. Both must round-trip.
+// paste into the form. The web template advertises "comma/space-separated";
+// both styles must round-trip.
 func TestParseKickChannels(t *testing.T) {
 	cases := []struct {
 		name string

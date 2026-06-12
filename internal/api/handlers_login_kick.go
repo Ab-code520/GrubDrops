@@ -90,8 +90,7 @@ func (d *loginKickDeps) post(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/accounts", http.StatusSeeOther)
 }
 
-// kickCookieForm carries the cookie/channel fields a Kick login submits,
-// shared by the authed HTML handler and the no-auth helper endpoint.
+// kickCookieForm carries the cookie/channel fields a Kick login submits.
 type kickCookieForm struct {
 	KickSession  string
 	XSRF         string
