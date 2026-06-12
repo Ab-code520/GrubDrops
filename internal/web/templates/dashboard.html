@@ -152,7 +152,12 @@
       </div>
       <select name="account" id="ev-account" class="ev-account">
         <option value="all">all accounts</option>
-        {{range .EventAccounts}}<option value="{{.ID}}" style="color:var(--{{if eq .Platform "twitch"}}purple{{else if eq .Platform "kick"}}kick{{else}}text{{end}})">{{.Label}}</option>{{end}}
+        {{/* Native <select> ignores per-<option> color in most browsers (and
+             the closed label never reflects it), so duplicate display names
+             across platforms (Twitch vs Kick) would be indistinguishable.
+             Append a platform suffix to the option text to disambiguate; the
+             inline color is kept for the browsers/dark contexts that honour it. */}}
+        {{range .EventAccounts}}<option value="{{.ID}}" style="color:var(--{{if eq .Platform "twitch"}}purple{{else if eq .Platform "kick"}}kick{{else}}text{{end}})">{{.Label}}{{if .Platform}} · {{.Platform}}{{end}}</option>{{end}}
       </select>
       <div class="live">streaming</div>
     </form>
