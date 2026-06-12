@@ -33,13 +33,6 @@ type Config struct {
 	// inspects its own container to find the network it shares with sidecars.
 	KickSidecarNetwork string
 
-	// KickBrowserWatch routes Kick watch-time accrual through the chromedp
-	// sidecar (a real, playing IVS <video>), the only path Kick credits.
-	// Requires GRUB_BROWSER_URL to be set too. When false (default) Kick
-	// uses the pure-HTTP viewer-WS, which does NOT accrue drop time.
-	// Set GRUB_KICK_BROWSER_WATCH=1 to enable.
-	KickBrowserWatch bool
-
 	// OIDC single-sign-on (all optional; feature enabled only when issuer,
 	// client id, client secret, and redirect URL are all set).
 	OIDCIssuer        string
@@ -60,7 +53,6 @@ func Load() (Config, error) {
 		SecureCookies:     parseBool(os.Getenv("GRUB_SECURE_COOKIES")),
 		BrowserURL:        os.Getenv("GRUB_BROWSER_URL"),
 		LogLevel:          strings.ToLower(getenv("GRUB_LOG_LEVEL", "info")),
-		KickBrowserWatch:  parseBool(os.Getenv("GRUB_KICK_BROWSER_WATCH")),
 	}
 	cfg.BrowserURLs = splitList(os.Getenv("GRUB_BROWSER_URLS"))
 	if len(cfg.BrowserURLs) == 0 && cfg.BrowserURL != "" {

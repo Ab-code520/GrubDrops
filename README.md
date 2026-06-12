@@ -62,7 +62,6 @@ services:
     environment:
       GRUB_MASTER_KEY: ${GRUB_MASTER_KEY:?run: head -c32 /dev/urandom | base64}
       GRUB_DB_PATH: /data/miner.db
-      GRUB_KICK_BROWSER_WATCH: "1"
       GRUB_SECURE_COOKIES: "0"   # plain-HTTP localhost; set 1 behind HTTPS
     volumes:
       - ./data:/data
@@ -78,8 +77,9 @@ GRUB_MASTER_KEY=$(head -c32 /dev/urandom | base64) docker compose up -d
 
 Open **http://localhost:8080**. The first visit asks you to create an admin login.
 
-**Twitch only?** Set `GRUB_KICK_BROWSER_WATCH=0` and drop the docker-socket
-mount — no sidecars are ever created.
+**Twitch only?** Drop the docker-socket mount and leave `GRUB_BROWSER_URL`
+unset — no Kick sidecars are ever created (Kick simply has no accruing watch
+path without one).
 
 **Want every knob?** The full reference compose (sidecar profiles, OIDC, each
 setting commented) lives in
@@ -155,8 +155,7 @@ default shown.
 | `GRUB_MASTER_KEY` | **required** | Key for the age-encrypted session store. |
 | `GRUB_HTTP_ADDR` | `:8080` | Listen address. |
 | `GRUB_DB_PATH` | `/data/miner.db` | SQLite path (use e.g. `./miner.db` outside Docker). |
-| `GRUB_KICK_BROWSER_WATCH` | `0` | `1` = credit-earning browser watch for Kick (needs the docker socket; sidecars are auto-created). |
-| `GRUB_KICK_SIDECAR_IMAGE` | `ghcr.io/aalejandrofer/grubdrops-browser:latest` | Image the miner pulls + runs for each auto-created sidecar. |
+| `GRUB_KICK_SIDECAR_IMAGE` | `ghcr.io/aalejandrofer/grubdrops-browser:latest` | Image the miner pulls + runs for each auto-created sidecar. Kick watch always runs through a sidecar (the only accruing path); none configured = Kick can't watch. |
 | `GRUB_KICK_SIDECAR_NETWORK` | auto-detected | Docker network to attach sidecars to. Defaults to the miner's own network (self-detected); set to override. |
 | `GRUB_KICK_SIDECAR_TEMPLATE` | `grubdrops-browser-{slug}` | Per-account sidecar container-name template. |
 | `GRUB_KICK_SIDECAR_PORT` | `9090` | Sidecar gRPC port. |

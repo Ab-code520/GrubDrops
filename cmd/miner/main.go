@@ -127,13 +127,11 @@ func run() error {
 	// host docker socket so each account's Chrome only runs when actively
 	// watching. Degrade to always-on if the socket is unreachable.
 	var dockerCtl dockerctl.Controller
-	if cfg.KickBrowserWatch {
-		if dc, err := dockerctl.New(); err != nil {
-			logger.Warn("docker control unavailable; kick sidecars stay always-on", "err", err)
-		} else {
-			dockerCtl = dc
-			logger.Info("docker control enabled for on-demand kick sidecars")
-		}
+	if dc, err := dockerctl.New(); err != nil {
+		logger.Warn("docker control unavailable; kick sidecars stay always-on", "err", err)
+	} else {
+		dockerCtl = dc
+		logger.Info("docker control enabled for on-demand kick sidecars")
 	}
 	// Kick runs over the pure-HTTP utls transport (Chrome TLS fingerprint) and
 	// no longer needs the chromedp sidecar for data — Kick's API 403s any
@@ -150,16 +148,15 @@ func run() error {
 		logger.Info("kick sidecar auto-create enabled", "image", cfg.KickSidecarImage, "network", cfg.KickSidecarNetwork)
 	}
 	kickBackend = kick.New(browserClient, dockerCtl, cfg.KickSidecarTemplate, cfg.KickSidecarPort, 10*time.Minute, kickOpts...)
-	// Browser-watch: route Kick watch-time accrual through the sidecar's
-	// real IVS <video> session (the only path Kick credits). Requires a
-	// sidecar; EnableBrowserWatch no-ops + warns if browserClient is nil.
-	if cfg.KickBrowserWatch {
-		kickBackend.EnableBrowserWatch()
-	}
+	// Browser-watch is the only path that accrues Kick drop time (real IVS
+	// <video> in the sidecar), so always enable it. EnableBrowserWatch no-ops
+	// + warns if no sidecar client is configured, in which case StartWatch
+	// errors loudly rather than running a watch that earns nothing.
+	kickBackend.EnableBrowserWatch()
 	registry.Register(kickBackend)
 	logger.Info("kick backend enabled (utls HTTP transport)",
 		"sidecar", browserClient != nil,
-		"browser_watch", cfg.KickBrowserWatch && browserClient != nil)
+		"browser_watch", browserClient != nil)
 
 	if twitchBrowserEnabled && browserClient != nil {
 		registry.Register(twitch.NewBrowserBackend(browserClient))
