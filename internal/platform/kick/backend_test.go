@@ -364,3 +364,30 @@ func TestKickBackend_SweepCompletedClaims(t *testing.T) {
 	}
 	assert.Equal(t, 1, claimCalls, "exactly one completed reward should be claimed")
 }
+
+func TestKickBackend_FetchAvatar(t *testing.T) {
+	// Top-level profile_pic shape.
+	f := &fakeDoer{resp: map[string]fakeResp{
+		"https://kick.com/api/v1/user": {200, `{"id":42,"username":"grubber","profile_pic":"https://files.kick.com/images/user/42/profile_image/conversion/abc-fullsize.webp"}`},
+	}}
+	b := withFake(f)
+	url, err := b.FetchAvatar(context.Background(), sess("acc1"))
+	require.NoError(t, err)
+	assert.Equal(t, "https://files.kick.com/images/user/42/profile_image/conversion/abc-fullsize.webp", url)
+
+	// Nested user{} shape.
+	f2 := &fakeDoer{resp: map[string]fakeResp{
+		"https://kick.com/api/v1/user": {200, `{"user":{"profile_pic":"https://files.kick.com/images/user/7/profile_image/x.webp"}}`},
+	}}
+	url2, err := withFake(f2).FetchAvatar(context.Background(), sess("acc1"))
+	require.NoError(t, err)
+	assert.Equal(t, "https://files.kick.com/images/user/7/profile_image/x.webp", url2)
+
+	// No avatar set -> empty string, no error (caller keeps letter circle).
+	f3 := &fakeDoer{resp: map[string]fakeResp{
+		"https://kick.com/api/v1/user": {200, `{"id":9,"username":"nopic"}`},
+	}}
+	url3, err := withFake(f3).FetchAvatar(context.Background(), sess("acc1"))
+	require.NoError(t, err)
+	assert.Empty(t, url3)
+}

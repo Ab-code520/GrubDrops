@@ -24,6 +24,10 @@ type imageProxyDeps struct {
 // hotlink can 403 — we fetch it over the utls transport.
 const kickCDNHost = "ext.cdn.kick.com"
 
+// kickFilesHost serves user profile pictures (images/user/...). Unlike the
+// reward-image CDN it has no resize endpoint, so we proxy these full-size.
+const kickFilesHost = "files.kick.com"
+
 // kickImageTransform mirrors Kick's own on-the-fly resize/format params so
 // we serve a small webp instead of the full-size png.
 const kickImageTransform = "width=384,format=webp,quality=75"
@@ -46,12 +50,20 @@ func (d *imageProxyDeps) kick(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	path = strings.TrimPrefix(path, "/")
-	// SSRF guard: only Kick reward/drop image paths.
+	// SSRF guard: only Kick reward/drop image paths and user avatars.
 	if !strings.HasPrefix(path, "drops/") && !strings.HasPrefix(path, "images/") {
 		http.Error(w, "bad image path", http.StatusBadRequest)
 		return
 	}
-	target := "https://" + kickCDNHost + "/" + path + "?" + kickImageTransform
+	// User profile pictures live on files.kick.com under images/user/... and
+	// are not served by the ext.cdn resize endpoint, so fetch them full-size
+	// from the files host. Reward/drop images keep the ext.cdn resize path.
+	var target string
+	if strings.HasPrefix(path, "images/user/") || strings.HasPrefix(path, "images/avatars/") {
+		target = "https://" + kickFilesHost + "/" + path
+	} else {
+		target = "https://" + kickCDNHost + "/" + path + "?" + kickImageTransform
+	}
 
 	b, ok := d.registry.Get("kick")
 	if !ok {

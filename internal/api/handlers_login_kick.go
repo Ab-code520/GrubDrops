@@ -164,6 +164,18 @@ func (d *loginKickDeps) persistKickSession(ctx context.Context, id string, f kic
 		}
 	}
 
+	// Backfill the avatar now so it shows immediately; the sweep refreshes it
+	// later. Only when verified — a dead session can't fetch the profile pic.
+	if verified {
+		if b, ok := d.registrar.(platform.Backend); ok {
+			avatarCtx := d.rootCtx
+			if avatarCtx == nil {
+				avatarCtx = ctx
+			}
+			fetchAndStoreAvatar(avatarCtx, d.q, b, id, sess)
+		}
+	}
+
 	if d.registrar != nil {
 		d.registrar.RegisterChannels(id, f.Channels)
 	}

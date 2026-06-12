@@ -109,6 +109,46 @@ func (c *Checker) checkOne(ctx context.Context, accountID, plat string) {
 	}
 	c.persist(ctx, accountID, res)
 	c.log.Info("authcheck", "kind", "auth", "account", accountID, "ok", res.OK, "msg", res.Msg)
+
+	// Backfill / refresh the account avatar while we have a verified
+	// session in hand. Avatars change rarely, so the ~12h sweep cadence is
+	// plenty — keeping the fetch here (and on login) keeps it off the hot
+	// per-tick path. Best-effort: a failure never affects the auth result.
+	if res.OK {
+		c.refreshAvatar(cctx, accountID, b, sess)
+	}
+}
+
+// refreshAvatar fetches the account's profile picture (if the backend
+// supports it) and persists it. Best-effort and idempotent — only writes
+// when the fetched URL differs from what's stored, to avoid churning
+// updated_at on every sweep.
+func (c *Checker) refreshAvatar(ctx context.Context, accountID string, b platform.Backend, sess platform.Session) {
+	fetcher, ok := b.(platform.AvatarFetcher)
+	if !ok {
+		return
+	}
+	url, err := fetcher.FetchAvatar(ctx, sess)
+	if err != nil {
+		c.log.Debug("authcheck: avatar fetch failed", "account", accountID, "err", err)
+		return
+	}
+	if url == "" {
+		return
+	}
+	acc, err := c.q.GetAccount(ctx, accountID)
+	if err == nil && acc.AvatarUrl == url {
+		return // unchanged
+	}
+	if err := c.q.UpdateAccountAvatar(ctx, gen.UpdateAccountAvatarParams{
+		AvatarUrl: url,
+		UpdatedAt: time.Now().Unix(),
+		ID:        accountID,
+	}); err != nil {
+		c.log.Warn("authcheck: persist avatar failed", "account", accountID, "err", err)
+		return
+	}
+	c.log.Info("authcheck: avatar updated", "account", accountID)
 }
 
 func (c *Checker) persist(ctx context.Context, accountID string, res Result) {
