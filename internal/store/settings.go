@@ -18,8 +18,6 @@ const (
 	keyTickIntervalMs   = "settings:tick_interval_ms" // legacy; migrated to tick_interval_sec
 	keyDiscoveryIntvMin = "settings:discovery_interval_min"
 	keyDiscoveryIntvSec = "settings:discovery_interval_sec" // legacy; migrated to discovery_interval_min
-	keyHeartbeatIntvSec = "settings:heartbeat_interval_sec"
-	keyHeartbeatsPerMin = "settings:heartbeats_per_min" // legacy; migrated to heartbeat_interval_sec
 	keyNotifyClaim      = "settings:notify_claim"
 	keyNotifyProgress   = "settings:notify_progress"
 	keyNotifyAuth       = "settings:notify_auth"
@@ -162,32 +160,10 @@ func (s *Settings) SetDiscoveryIntervalMin(ctx context.Context, min int) error {
 	return s.setString(ctx, keyDiscoveryIntvMin, strconv.Itoa(min))
 }
 
-// HeartbeatIntervalSec is how often (seconds) the watcher runs a watch-ping +
-// progress-poll cycle. Default 60. Can exceed 60 to slow the API request rate
-// (Kick accrues via the presence WS, so polling slower only delays progress
-// display). Falls back to the legacy heartbeats_per_min key when unset.
-// Clamped to [10s, 1h].
-func (s *Settings) HeartbeatIntervalSec(ctx context.Context) (int, error) {
-	raw, err := s.getString(ctx, keyHeartbeatIntvSec)
-	if err != nil || raw == "" {
-		// Legacy migration: heartbeats_per_min N => 60/N seconds.
-		if legacy, lerr := s.getString(ctx, keyHeartbeatsPerMin); lerr == nil && legacy != "" {
-			if n, _ := strconv.Atoi(legacy); n >= 1 {
-				return clampInt(60/n, 10, 3600), nil
-			}
-		}
-		return 60, err
-	}
-	n, _ := strconv.Atoi(raw)
-	if n <= 0 {
-		return 60, nil
-	}
-	return clampInt(n, 10, 3600), nil
-}
-
-func (s *Settings) SetHeartbeatIntervalSec(ctx context.Context, sec int) error {
-	return s.setString(ctx, keyHeartbeatIntvSec, strconv.Itoa(sec))
-}
+// HeartbeatInterval is intentionally NOT a setting. It is locked to 60s in the
+// watcher build (cmd/miner): the Twitch watch-ping beacon cadence derives from
+// it and Twitch credits exactly 1 minute per beacon, so any value >60s
+// under-credits Twitch watch-time. Do not re-expose this as a user setting.
 
 func clampInt(n, lo, hi int) int {
 	if n < lo {

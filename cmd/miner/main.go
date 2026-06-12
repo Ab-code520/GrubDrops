@@ -328,7 +328,6 @@ func run() error {
 		// Runtime cadence + progress-notify granularity — read per build (per
 		// Reload) so saving on /settings + reloading takes effect.
 		tickSec, _ := settingsStore.TickIntervalSec(ctx)
-		heartbeatSec, _ := settingsStore.HeartbeatIntervalSec(ctx)
 		progressStep, _ := settingsStore.ProgressNotifyStepPct(ctx)
 
 		// Manual "I've linked it" overrides — campaign ids the user asserted
@@ -341,7 +340,11 @@ func run() error {
 			AccountID: a.ID, AccountLabel: acctLabel, Platform: a.Platform,
 			Backend: b, Session: sess,
 			Notifier: notifier, TickInterval: time.Duration(tickSec) * time.Second,
-			HeartbeatInterval:     time.Duration(heartbeatSec) * time.Second,
+			// LOCKED to 60s, not user-tunable: the watch-ping beacon cadence is
+			// derived from HeartbeatInterval, and Twitch credits exactly 1 minute
+			// per beacon — any value >60s under-credits Twitch watch-time (120s =>
+			// 0.5 min/real-min, measured 2026-06-12). See watcher.heartbeatEveryTicks.
+			HeartbeatInterval:     60 * time.Second,
 			ProgressNotifyStepPct: progressStep,
 			AllowGame:             allow, GameRank: rank,
 			PriorityMode:  priorityMode,

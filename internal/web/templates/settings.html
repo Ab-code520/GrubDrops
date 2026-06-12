@@ -209,11 +209,6 @@
             <span class="v"><input type="number" name="tick_interval_sec" value="{{.TickIntervalSec}}" min="1" max="300"><span class="u">s</span></span>
           </div>
           <div class="row">
-            <span class="k">heartbeat interval</span>
-            <span class="d">how often it <b>pings the platform</b> — watch-ping + progress poll per account</span>
-            <span class="v"><input type="number" name="heartbeat_interval_sec" value="{{.HeartbeatIntervalSec}}" min="10" max="3600"><span class="u">s</span></span>
-          </div>
-          <div class="row">
             <span class="k">discovery interval</span>
             <span class="d">how often it <b>looks for new drops</b> — re-scans the campaign catalog</span>
             <span class="v"><input type="number" name="discovery_interval_min" value="{{.DiscoveryIntervalMin}}" min="1" max="1440"><span class="u">min</span></span>

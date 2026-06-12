@@ -74,7 +74,6 @@ type settingsPageData struct {
 	LogLevelEnv          string
 	TickIntervalSec      int
 	DiscoveryIntervalMin int
-	HeartbeatIntervalSec int
 	PriorityMode         string // "ordered" | "ending_soonest"
 	NotifyClaim          bool
 	NotifyProgress       bool
@@ -106,7 +105,6 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 	level, _ := d.s.LogLevel(ctx)
 	tick, _ := d.s.TickIntervalSec(ctx)
 	discIv, _ := d.s.DiscoveryIntervalMin(ctx)
-	hbSec, _ := d.s.HeartbeatIntervalSec(ctx)
 	prio, _ := d.s.PriorityMode(ctx)
 	nc, np, na, ne := d.s.NotifyKinds(ctx)
 	progStep, _ := d.s.ProgressNotifyStepPct(ctx)
@@ -155,7 +153,6 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 			LogLevelEnv:          d.logLevelEnv,
 			TickIntervalSec:      tick,
 			DiscoveryIntervalMin: discIv,
-			HeartbeatIntervalSec: hbSec,
 			PriorityMode:         prio,
 			GlobalGames:          globalGames,
 			AllGames:             allGames,
@@ -214,14 +211,8 @@ func (d *settingsDeps) postGeneral(w http.ResponseWriter, r *http.Request) {
 			_ = d.s.SetDiscoveryIntervalMin(ctx, n)
 		}
 	}
-	if v := r.FormValue("heartbeat_interval_sec"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			if cur, _ := d.s.HeartbeatIntervalSec(ctx); cur != n {
-				intervalsChanged = true
-			}
-			_ = d.s.SetHeartbeatIntervalSec(ctx, n)
-		}
-	}
+	// heartbeat_interval_sec intentionally not accepted: HeartbeatInterval is
+	// locked to 60s (Twitch credits 1 min per beacon; >60s under-credits).
 	if d.onUpdate != nil {
 		d.onUpdate()
 	}
