@@ -10,14 +10,15 @@ All notable changes to GrubDrops.
   binaries, `internal/helper` package, `POST /helper/accounts/{id}/kick`,
   `GET /download/helper`, and the `GRUB_HELPER_DIR` env var are all gone.
   Kick cookie ingestion is now done via the **cookies.txt** flow: export with
-  the EditThisCookie / Get cookies.txt browser extension and paste or upload on
-  the Kick authorize page. Remote users sign in via SSO first.
+  the "Get cookies.txt LOCALLY" (Chrome) or "cookies.txt" (Firefox) extension
+  and paste or upload on the Kick authorize page. Remote users sign in via SSO
+  first.
 
 ### Added
 
 - **Release workflow** — `.github/workflows/release.yml` publishes
   `ghcr.io/aalejandrofer/grubdrops` and `ghcr.io/aalejandrofer/grubdrops-browser`
-  multi-arch images on `v*` tags.
+  `linux/amd64` images on `v*` tags.
 - **cookies.txt Kick login** — parser, upload handler, and authorize-page template
   replacing the helper-binary path.
 
