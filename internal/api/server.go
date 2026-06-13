@@ -184,6 +184,7 @@ func NewRouter(d Deps) http.Handler {
 	authed.Get("/dashboard/campaign/{id}", dash.campaignDetail)
 	authed.Get("/dashboard/account/{id}", dash.accountDetail)
 	authed.Get("/accounts", accs.list)
+	authed.Get("/settings/accounts", accs.list) // canonical path; /accounts kept as alias
 	authed.Post("/accounts/check-auth", accs.checkAuth)
 	authed.Get("/accounts/new", accs.newGet)
 	authed.Post("/accounts/new", accs.newPost)
