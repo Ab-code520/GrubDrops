@@ -411,21 +411,22 @@
     font-variant-numeric: tabular-nums;
   }
   /* Bubble next to the KICK header showing the active accrual path. */
-  /* Per-account live watch-path pill (WS green / Chrome blue). Small, inline
-     next to the account name. */
+  /* Per-account live watch-path pill (WS green / Chrome blue). Small, sits
+     under the name in the .who flex column. align-self:flex-start so it hugs
+     its text instead of stretching to the column width. */
   .watch-mode {
-    display: inline-block;
-    margin-left: 6px;
-    vertical-align: middle;
+    align-self: flex-start;
+    margin-top: 2px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 8.5px;
+    font-size: 7px;
     font-weight: 700;
-    line-height: 1.4;
+    line-height: 1.5;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    padding: 0 5px;
+    padding: 0 4px;
     border-radius: 999px;
     border: 1px solid transparent;
+    opacity: 0.75;
     cursor: help;
   }
   .watch-mode.ws     { color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
