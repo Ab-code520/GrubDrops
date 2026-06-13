@@ -8,6 +8,14 @@ _No unreleased changes._
 
 ## [1.0.3] — 2026-06-13
 
+### Changed
+
+- **Lower-bandwidth Kick playback (#15)** — the browser sidecar now caps the
+  watch tab's bandwidth and pins the IVS player to its lowest rendition. Drop
+  watch-time only needs the stream alive, not a clean picture, so this cuts the
+  per-sidecar network + CPU/decode load (and on a small ARM box, lets more
+  sidecars run at once).
+
 ### Added
 
 - **Per-account reload** — each row in the dashboard "Currently mining" cards
