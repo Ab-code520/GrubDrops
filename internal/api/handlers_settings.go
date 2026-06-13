@@ -35,6 +35,7 @@ type settingsDeps struct {
 	startedAt   time.Time
 	logLevelEnv string
 	browserURL  string
+	sidecars    func() []string
 	gitCommit   string
 	version     string
 	// oidc is the configured SSO provider, surfaced read-only on settings.
@@ -92,6 +93,7 @@ type settingsPageData struct {
 	GoVersion  string
 	Goroutines int
 	BrowserURL string
+	Sidecars   []string // per-account Kick sidecar addresses
 	GitCommit  string
 	Version    string
 	// Read-only SSO status
@@ -108,6 +110,10 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 	discIv, _ := d.s.DiscoveryIntervalMin(ctx)
 	prio, _ := d.s.PriorityMode(ctx)
 	kickWatch, _ := d.s.KickWatchMode(ctx)
+	var sidecars []string
+	if d.sidecars != nil {
+		sidecars = d.sidecars()
+	}
 	nc, np, na, ne := d.s.NotifyKinds(ctx)
 	progStep, _ := d.s.ProgressNotifyStepPct(ctx)
 
@@ -168,6 +174,7 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 			GoVersion:            runtime.Version(),
 			Goroutines:           runtime.NumGoroutine(),
 			BrowserURL:           d.browserURL,
+			Sidecars:             sidecars,
 			GitCommit:            d.gitCommit,
 			Version:              d.version,
 			OIDC:                 ssoStatus,

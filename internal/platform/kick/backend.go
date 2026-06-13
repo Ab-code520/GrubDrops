@@ -107,6 +107,10 @@ func New(c *browser.Client, ctl dockerctl.Controller, template string, port int,
 	return b
 }
 
+// SidecarAddrs returns each registered account's sidecar address
+// ("container:port"), sorted, for the read-only Status panel on /settings.
+func (b *Backend) SidecarAddrs() []string { return b.sidecars.names() }
+
 // RegisterSidecar maps an account to its username-derived sidecar. Called at
 // startup (per-account build loop) and on login.
 func (b *Backend) RegisterSidecar(accountID, username string) {

@@ -17,6 +17,8 @@ All notable changes to GrubDrops.
 
 - **More legible settings row labels** — the key labels (tick interval, discovery
   interval, …) are now full-contrast and semibold instead of dim grey.
+- **Settings → Status lists all Kick sidecars** — the single "sidecar" row is now
+  "sidecars" and lists every per-account sidecar address, not just one.
 
 ### Removed
 

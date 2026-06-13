@@ -483,6 +483,7 @@ func run() error {
 		StartTime:         startTime,
 		LogLevelEnv:       cfg.LogLevel,
 		BrowserURLDisplay: cfg.BrowserURL,
+		KickSidecars:      kickSidecarLister(kickBackend),
 		GitCommit:         os.Getenv("GIT_COMMIT"),
 		Version:           cmp.Or(version, os.Getenv("GRUB_VERSION")),
 		OIDC:              oidcProvider,
@@ -715,4 +716,13 @@ func startDiscovery(
 	scraper := discovery.New(persister, discovery.NewQueriesWhitelist(q), providers...)
 	logger.Info("discovery scraper started", "interval", interval, "providers", len(providers))
 	go scraper.Run(ctx, interval)
+}
+
+// kickSidecarLister returns a closure the Status panel calls to list the
+// per-account Kick sidecar addresses, or nil when no Kick backend is wired.
+func kickSidecarLister(b *kick.Backend) func() []string {
+	if b == nil {
+		return nil
+	}
+	return b.SidecarAddrs
 }

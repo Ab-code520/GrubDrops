@@ -97,6 +97,9 @@ type Deps struct {
 	BrowserURLDisplay string // GRUB_BROWSER_URL value (config.Load)
 	GitCommit         string // build-time git commit short hash
 	Version           string // semver / release tag
+	// KickSidecars lists the per-account Kick sidecar addresses for the
+	// read-only Status panel. Nil when no Kick backend is configured.
+	KickSidecars func() []string
 }
 
 func NewRouter(d Deps) http.Handler {
@@ -268,6 +271,7 @@ func NewRouter(d Deps) http.Handler {
 		startedAt:   startedAt,
 		logLevelEnv: d.LogLevelEnv,
 		browserURL:  d.BrowserURLDisplay,
+		sidecars:    d.KickSidecars,
 		gitCommit:   d.GitCommit,
 		version:     d.Version,
 		oidc:        d.OIDC,

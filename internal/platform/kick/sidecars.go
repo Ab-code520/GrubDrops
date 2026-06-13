@@ -2,7 +2,9 @@ package kick
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -121,6 +123,22 @@ func (r *sidecarRegistry) nameFor(accountID string) string {
 		return s.containerName
 	}
 	return ""
+}
+
+// names returns each registered account's sidecar address ("container:port"),
+// sorted, for read-only display. Skips accounts with no controllable sidecar.
+func (r *sidecarRegistry) names() []string {
+	r.mu.Lock()
+	out := make([]string, 0, len(r.byAcc))
+	for _, s := range r.byAcc {
+		if s.containerName == "" {
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s:%d", s.containerName, r.port))
+	}
+	r.mu.Unlock()
+	sort.Strings(out)
+	return out
 }
 
 func (r *sidecarRegistry) touch(accountID string) { r.touchAt(accountID, time.Now()) }
