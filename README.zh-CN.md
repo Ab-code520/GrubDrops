@@ -1,3 +1,5 @@
+<p align="center"><sub><a href="README.md">English</a> · <strong>简体中文</strong> · <a href="README.es.md">Español</a></sub></p>
+
 <p align="center">
   <img src="internal/web/static/img/logo.png" width="160" alt="GrubDrops">
 </p>
@@ -19,8 +21,6 @@
 <p align="center">
   <img src="docs/screenshots/console.png" width="900" alt="GrubDrops console: watch-time stats, per-account mining across Twitch and Kick, and a live event feed">
 </p>
-
-[English](README.md) · **简体中文** · [Español](README.es.md)
 
 ---
 
