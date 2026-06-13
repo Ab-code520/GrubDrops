@@ -25,6 +25,21 @@ All notable changes to GrubDrops.
 - **Accounts moved under Settings** — the accounts page is now `/settings/accounts`
   (with `/accounts` kept as an alias) and shares the unified settings subnav, so
   the Experimental tab shows there too.
+- **Telemetry row reworked + a 6th tile** — the band now fills its 6-column grid
+  and groups lifetime → now: Watch time, Drops claimed · Watching (`N/M accounts`
+  live now), Live campaigns (broadcasting on your whitelist), Drops collected
+  (`X/Y`), Next claim. Scope labels make campaigns-vs-drops unambiguous.
+
+### Fixed
+
+- **NEXT CLAIM now tracks the closest drop live** — the telemetry band was static
+  and only updated on page load; it now polls every 10s, so NEXT CLAIM reflects
+  the current nearest ETA across all accounts instead of freezing.
+- **Dashboard row no longer overlaps the state pill** — long activity/campaign
+  text now truncates with an ellipsis at the column edge (flex children were
+  keeping their full width and sliding under the pill).
+- **Whitelisting a multi-word game** no longer fails with "UNIQUE constraint
+  failed: games.slug" — the add-game handlers now use the canonical game id.
 
 ### Removed
 
