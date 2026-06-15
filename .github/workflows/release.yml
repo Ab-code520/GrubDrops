@@ -19,11 +19,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # `key` (miner/browser) names the digest artifacts. It must NOT be a
+        # prefix of another key — "grubdrops" is a prefix of "grubdrops-browser",
+        # so using the image name would make the merge's `digest-grubdrops-*`
+        # pattern also match the browser artifacts.
         include:
-          - { image: grubdrops,         dockerfile: deploy/Dockerfile.miner,   platform: linux/amd64, runner: ubuntu-latest,   arch: amd64 }
-          - { image: grubdrops,         dockerfile: deploy/Dockerfile.miner,   platform: linux/arm64, runner: ubuntu-24.04-arm, arch: arm64 }
-          - { image: grubdrops-browser, dockerfile: deploy/Dockerfile.browser, platform: linux/amd64, runner: ubuntu-latest,   arch: amd64 }
-          - { image: grubdrops-browser, dockerfile: deploy/Dockerfile.browser, platform: linux/arm64, runner: ubuntu-24.04-arm, arch: arm64 }
+          - { image: grubdrops,         key: miner,   dockerfile: deploy/Dockerfile.miner,   platform: linux/amd64, runner: ubuntu-latest,   arch: amd64 }
+          - { image: grubdrops,         key: miner,   dockerfile: deploy/Dockerfile.miner,   platform: linux/arm64, runner: ubuntu-24.04-arm, arch: arm64 }
+          - { image: grubdrops-browser, key: browser, dockerfile: deploy/Dockerfile.browser, platform: linux/amd64, runner: ubuntu-latest,   arch: amd64 }
+          - { image: grubdrops-browser, key: browser, dockerfile: deploy/Dockerfile.browser, platform: linux/arm64, runner: ubuntu-24.04-arm, arch: arm64 }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
@@ -61,7 +65,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: digest-${{ matrix.image }}-${{ matrix.arch }}
+          name: digest-${{ matrix.key }}-${{ matrix.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -70,13 +74,16 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        image: [grubdrops, grubdrops-browser]
+        include:
+          - { image: grubdrops,         key: miner }
+          - { image: grubdrops-browser, key: browser }
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: /tmp/digests
-          pattern: digest-${{ matrix.image }}-*
+          pattern: digest-${{ matrix.key }}-*
           merge-multiple: true
 
       - uses: docker/setup-buildx-action@v3
