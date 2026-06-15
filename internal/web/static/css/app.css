@@ -2336,7 +2336,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.18em;
-    color: var(--text);
+    color: var(--accent);
   }
   .section-h .meta {
     font-family: 'JetBrains Mono', monospace;
