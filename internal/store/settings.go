@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/aalejandrofer/grubdrops/internal/store/gen"
 )
@@ -23,8 +24,11 @@ const (
 	keyNotifyAuth       = "settings:notify_auth"
 	keyNotifyError      = "settings:notify_error"
 	keyNotifyProgStep   = "settings:notify_progress_step_pct"
-	keyPriorityMode     = "settings:priority_mode"
-	keyKickWatchMode    = "settings:kick_watch_mode"
+	keyPriorityMode          = "settings:priority_mode"
+	keyKickWatchMode         = "settings:kick_watch_mode"
+	keyCanaryTwitchChannel   = "settings:canary_twitch_channel"
+	keyCanaryKickChannel     = "settings:canary_kick_channel"
+	keyCanaryIntervalSec     = "settings:canary_interval_sec"
 )
 
 // KickWatchMode selects how Kick watch-time is accrued.
@@ -284,4 +288,49 @@ func (s *Settings) SetNotifyKinds(ctx context.Context, claim, progress, auth, er
 		return err
 	}
 	return s.setString(ctx, keyNotifyError, b(errors))
+}
+
+// CanaryTwitchChannel is the Twitch channel used for accrual canary checks.
+// Default "alveussanctuary" (always-live charity stream).
+func (s *Settings) CanaryTwitchChannel(ctx context.Context) (string, error) {
+	raw, err := s.getString(ctx, keyCanaryTwitchChannel)
+	if err != nil || raw == "" {
+		return "alveussanctuary", err
+	}
+	return raw, nil
+}
+
+func (s *Settings) SetCanaryTwitchChannel(ctx context.Context, v string) error {
+	return s.setString(ctx, keyCanaryTwitchChannel, strings.TrimSpace(v))
+}
+
+// CanaryKickChannel is the Kick channel used for accrual canary checks.
+// Default "" (empty = canary skipped for Kick).
+func (s *Settings) CanaryKickChannel(ctx context.Context) (string, error) {
+	return s.getString(ctx, keyCanaryKickChannel)
+}
+
+func (s *Settings) SetCanaryKickChannel(ctx context.Context, v string) error {
+	return s.setString(ctx, keyCanaryKickChannel, strings.TrimSpace(v))
+}
+
+// CanaryIntervalSec is how often the accrual canary runs, in seconds.
+// Default 21600 (6 hours).
+func (s *Settings) CanaryIntervalSec(ctx context.Context) (int, error) {
+	raw, err := s.getString(ctx, keyCanaryIntervalSec)
+	if err != nil {
+		return 0, err
+	}
+	if raw == "" {
+		return 6 * 3600, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n == 0 {
+		return 6 * 3600, nil
+	}
+	return n, nil
+}
+
+func (s *Settings) SetCanaryIntervalSec(ctx context.Context, n int) error {
+	return s.setString(ctx, keyCanaryIntervalSec, strconv.Itoa(n))
 }
