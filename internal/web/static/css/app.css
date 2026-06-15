@@ -1355,6 +1355,16 @@
   /* Only the dashboard live-events drawer is a fixed scrollable feed; the
      /history + /drops lists grow with content (no black dead-space). */
   .drawer .events { max-height: 530px; overflow: auto; }
+  /* Dashboard live log (#events-list) fills the remaining viewport height
+     so there's no dead space below the last entry. The drawer-head is
+     ~56px; the section-wide + drawer margin adds ~44px; the page bottom
+     padding is 80px — empirical total offset ~200px keeps a comfortable
+     bottom gap. Overrides the generic .drawer .events max-height above. */
+  #events-list {
+    min-height: calc(100vh - 200px);
+    max-height: none;
+    overflow-y: auto;
+  }
   /* Each .ev is a <details> element so the operator can click to
      reveal the structured fields from the underlying log line. One
      tight summary row: chevron · timestamp · kind-colored dot · body
@@ -2465,10 +2475,31 @@
   .settings-card .kvedit .v select:focus { border-bottom-color: var(--accent); background: transparent; }
   .kvedit .v .u { color: var(--muted); font-size: 10.5px; min-width: 26px; }
   /* Wide-value rows (URLs, passwords, free text): add .grow to the .v so
-     the borderless input fills the row, left-aligned. Skip .d on these. */
+     the input fills the row with a boxed field style. Skip .d on these. */
   .kvedit .v.grow { flex: 1 1 auto; }
-  .settings-card .kvedit .v.grow input { width: 100%; text-align: left; }
+  .settings-card .kvedit .v.grow input {
+    width: 100%;
+    text-align: left;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: var(--text);
+  }
   .settings-card .kvedit .v.grow input::placeholder { color: var(--dim); }
+  /* Override the generic transparent-bg hover/focus so the boxed field
+     keeps its background and shows a full border highlight on focus. */
+  .settings-card .kvedit .v.grow input:hover { border-color: var(--line); background: var(--surface-2); }
+  .settings-card .kvedit .v.grow input:focus { border-color: var(--accent); background: var(--surface-2); }
+  /* Canary channel inputs: right-aligned, anchored to the right edge,
+     growing leftward. Capped so they never crowd the label/description.
+     Only these inputs get text-align:right — passwords stay left. */
+  .settings-card .kvedit .v.grow input.chan-input {
+    text-align: right;
+    width: 100%;
+    max-width: 22ch;
+    margin-left: auto;
+  }
   /* Inline checkbox group as a STATUS-row value (notify kinds). */
   .kvedit .v.cbs { gap: 22px; flex-wrap: wrap; }
   .kvedit .v.cbs label.cb {
