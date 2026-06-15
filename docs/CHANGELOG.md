@@ -4,6 +4,24 @@ All notable changes to GrubDrops.
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-06-16
+
+### Changed
+
+- **Renamed the accrual canary to "Heartbeat Health Checker"** in the UI.
+- **Settings fields are boxed and readable.** The password and channel inputs used
+  to be near-invisible bare lines; they're proper bordered fields now, with room to
+  breathe. The Heartbeat channel value sits on the right and grows leftward as you
+  type, capped so it won't overlap the label.
+
+### Fixed
+
+- **The Accounts page no longer shows stale settings tabs.** It carried its own copy
+  of the subnav, so opening Accounts reverted to the old order with no Health tab.
+  Both pages share one subnav now, so they can't drift.
+- **The console live log fills the screen.** It used to stop short and leave a big
+  empty gap; it now runs to the bottom and scrolls.
+
 ## [1.2.0] — 2026-06-15
 
 ### Added
