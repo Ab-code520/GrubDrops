@@ -4,6 +4,14 @@ All notable changes to GrubDrops.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-06-15
+
+### Added
+
+- **Light theme + toggle.** A ☀/☾ toggle in the top bar switches between the
+  original dark theme and a new warm light theme; the choice persists
+  (localStorage) and is applied before paint, so there's no flash on reload.
+
 ### Changed
 
 - **Kick defaults to WS-first (WS, fall back to Chrome).** Fresh installs now
