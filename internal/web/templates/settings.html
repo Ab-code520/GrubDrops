@@ -13,15 +13,7 @@
       <a class="btn primary" href="/accounts/new">+ Add account</a>
     </div>
   </div>
-  <nav class="subnav">
-    <a href="/settings" class="subnav-link {{if eq .Active "settings"}}on{{end}}">General</a>
-    <a href="/settings/accounts" class="subnav-link {{if eq .Active "accounts"}}on{{end}}">Accounts</a>
-    <a href="/settings/priority" class="subnav-link {{if eq .Active "priority"}}on{{end}}">Drop Priority</a>
-    <a href="/settings/notifications" class="subnav-link {{if eq .Active "notifications"}}on{{end}}">Notifications</a>
-    <a href="/settings/security" class="subnav-link {{if eq .Active "security"}}on{{end}}">Security</a>
-    <a href="/settings/health" class="subnav-link {{if eq .Active "health"}}on{{end}}">Health</a>
-    <a href="/settings/experimental" class="subnav-link {{if eq .Active "experimental"}}on{{end}}">Experimental</a>
-  </nav>
+  {{template "settings_subnav" .}}
 
   {{if .Flash}}<div class="flash-ok">{{.Flash}}</div>{{end}}
 
@@ -122,7 +114,7 @@
               <label class="cb"><input type="checkbox" name="notify_progress" value="1" {{if .NotifyProgress}}checked{{end}}> progress</label>
               <label class="cb"><input type="checkbox" name="notify_auth" value="1" {{if .NotifyAuth}}checked{{end}}> auth</label>
               <label class="cb"><input type="checkbox" name="notify_error" value="1" {{if .NotifyError}}checked{{end}}> errors</label>
-              <label class="cb"><input type="checkbox" name="notify_canary" value="1" {{if .NotifyCanary}}checked{{end}}> accrual canary</label>
+              <label class="cb"><input type="checkbox" name="notify_canary" value="1" {{if .NotifyCanary}}checked{{end}}> heartbeat health check</label>
             </span>
           </div>
           <div class="row">
@@ -257,7 +249,7 @@
         <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
         <div class="kvedit">
           <div class="row">
-            <span class="k">Kick watch path</span>
+            <span class="k">Kick Watch Path</span>
             <span class="d">how Kick accrues watch-time · <b>Chrome</b> = IVS video in the sidecar (verified) · <b>WS</b> = pure WebSocket, no browser (experimental — may earn nothing until the WS path is proven) · <b>WS, fall back to Chrome</b> = try WS, switch to Chrome if it stops accruing · applies on reload</span>
             <span class="v"><select name="kick_watch_mode">
               <option value="auto" {{if eq .KickWatchMode "auto"}}selected{{end}}>WS, fall back to Chrome (default)</option>
@@ -275,7 +267,7 @@
 
     {{if eq $.Active "health"}}
 <section class="settings-card">
-  <header class="section-h"><h3>Accrual canary</h3><span class="meta">transport health</span></header>
+  <header class="section-h"><h3>Heartbeat Health Checker</h3><span class="meta">transport health</span></header>
   {{template "canary_panel" $}}
 </section>
 <section class="settings-card">

@@ -224,7 +224,7 @@ func titleFor(event Event) string {
 	case EventError:
 		return "Error"
 	case EventCanary:
-		return "Accrual canary failed"
+		return "Heartbeat health check failed"
 	default:
 		return event
 	}
