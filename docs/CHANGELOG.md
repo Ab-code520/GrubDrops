@@ -4,6 +4,13 @@ All notable changes to GrubDrops.
 
 ## [Unreleased]
 
+### Changed
+
+- **Faster release builds** — each image now builds on a native per-arch runner
+  (amd64 + arm64) instead of emulating arm64 with QEMU, and the two images build in
+  parallel. The slow part was the sidecar's emulated chromium install; native
+  runners cut release build time substantially.
+
 ## [1.2.1] — 2026-06-16
 
 ### Changed
