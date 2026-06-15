@@ -205,12 +205,13 @@ func run() error {
 		// takes effect (previously the filter was hardcoded all-true, so
 		// PROGRESS fired regardless of the checkbox). State events are
 		// never sent to Discord (too noisy).
-		claim, progress, auth, errs := settingsStore.NotifyKinds(ctx)
+		claim, progress, auth, errs, canaryOn := settingsStore.NotifyKinds(ctx)
 		filter := &notify.VerbosityFilter{Allow: map[string]bool{
 			notify.EventClaim:    claim,
 			notify.EventProgress: progress,
 			notify.EventAuth:     auth,
 			notify.EventError:    errs,
+			notify.EventCanary:   canaryOn,
 			notify.EventState:    false,
 			// Manual "send test" always delivers, regardless of toggles.
 			notify.EventTest: true,
@@ -498,6 +499,7 @@ func run() error {
 			kkCh, _ := settingsStore.CanaryKickChannel(runCtx)
 			return canary.RunnerSettings{TwitchChannel: twCh, KickChannel: kkCh}
 		},
+		notifier,
 	)
 	canaryIntervalSec, _ := settingsStore.CanaryIntervalSec(ctx)
 	canaryInterval := parseDuration(os.Getenv("GRUB_CANARY_INTERVAL"), time.Duration(canaryIntervalSec)*time.Second)

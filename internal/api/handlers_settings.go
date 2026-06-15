@@ -97,6 +97,7 @@ type settingsPageData struct {
 	NotifyProgress       bool
 	NotifyAuth           bool
 	NotifyError          bool
+	NotifyCanary         bool
 	ProgressNotifyStep   int // milestone % step for progress notifications (0 = off)
 
 	// Global priority list — used as fallback when an account has no
@@ -137,7 +138,7 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 	if d.sidecars != nil {
 		sidecars = d.sidecars()
 	}
-	nc, np, na, ne := d.s.NotifyKinds(ctx)
+	nc, np, na, ne, ncan := d.s.NotifyKinds(ctx)
 	progStep, _ := d.s.ProgressNotifyStepPct(ctx)
 
 	uptime := ""
@@ -200,6 +201,7 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 			NotifyProgress:       np,
 			NotifyAuth:           na,
 			NotifyError:          ne,
+			NotifyCanary:         ncan,
 			ProgressNotifyStep:   progStep,
 			Uptime:               uptime,
 			GoVersion:            runtime.Version(),
@@ -307,7 +309,7 @@ func (d *settingsDeps) postNotifications(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	on := func(name string) bool { return r.FormValue(name) == "1" }
-	if saveErr(w, d.s.SetNotifyKinds(ctx, on("notify_claim"), on("notify_progress"), on("notify_auth"), on("notify_error"))) {
+	if saveErr(w, d.s.SetNotifyKinds(ctx, on("notify_claim"), on("notify_progress"), on("notify_auth"), on("notify_error"), on("notify_canary"))) {
 		return
 	}
 	stepChanged := false

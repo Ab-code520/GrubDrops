@@ -23,6 +23,7 @@ const (
 	keyNotifyProgress   = "settings:notify_progress"
 	keyNotifyAuth       = "settings:notify_auth"
 	keyNotifyError      = "settings:notify_error"
+	keyNotifyCanary     = "settings:notify_canary"
 	keyNotifyProgStep   = "settings:notify_progress_step_pct"
 	keyPriorityMode          = "settings:priority_mode"
 	keyKickWatchMode         = "settings:kick_watch_mode"
@@ -218,8 +219,8 @@ func (s *Settings) SetProgressNotifyStepPct(ctx context.Context, pct int) error 
 }
 
 // NotifyKinds returns the boolean toggles for each Discord
-// notification category. Defaults: claim+error on, progress+auth off.
-func (s *Settings) NotifyKinds(ctx context.Context) (claim, progress, auth, errors bool) {
+// notification category. Defaults: claim+error on, progress+auth+canary off.
+func (s *Settings) NotifyKinds(ctx context.Context) (claim, progress, auth, errors, canary bool) {
 	get := func(k string, def bool) bool {
 		v, _ := s.getString(ctx, k)
 		if v == "" {
@@ -227,7 +228,7 @@ func (s *Settings) NotifyKinds(ctx context.Context) (claim, progress, auth, erro
 		}
 		return v == "1"
 	}
-	return get(keyNotifyClaim, true), get(keyNotifyProgress, false), get(keyNotifyAuth, false), get(keyNotifyError, true)
+	return get(keyNotifyClaim, true), get(keyNotifyProgress, false), get(keyNotifyAuth, false), get(keyNotifyError, true), get(keyNotifyCanary, false)
 }
 
 func (s *Settings) PriorityMode(ctx context.Context) (string, error) {
@@ -271,7 +272,7 @@ func (s *Settings) SetKickWatchMode(ctx context.Context, mode string) error {
 	return s.setString(ctx, keyKickWatchMode, mode)
 }
 
-func (s *Settings) SetNotifyKinds(ctx context.Context, claim, progress, auth, errors bool) error {
+func (s *Settings) SetNotifyKinds(ctx context.Context, claim, progress, auth, errors, canary bool) error {
 	b := func(v bool) string {
 		if v {
 			return "1"
@@ -287,7 +288,10 @@ func (s *Settings) SetNotifyKinds(ctx context.Context, claim, progress, auth, er
 	if err := s.setString(ctx, keyNotifyAuth, b(auth)); err != nil {
 		return err
 	}
-	return s.setString(ctx, keyNotifyError, b(errors))
+	if err := s.setString(ctx, keyNotifyError, b(errors)); err != nil {
+		return err
+	}
+	return s.setString(ctx, keyNotifyCanary, b(canary))
 }
 
 // CanaryTwitchChannel is the Twitch channel used for accrual canary checks.

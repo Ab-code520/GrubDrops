@@ -3,6 +3,7 @@ package canary_test
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/aalejandrofer/grubdrops/internal/canary"
+	"github.com/aalejandrofer/grubdrops/internal/notify"
 	"github.com/aalejandrofer/grubdrops/internal/platform"
 	"github.com/aalejandrofer/grubdrops/internal/store"
 	"github.com/aalejandrofer/grubdrops/internal/store/gen"
@@ -26,6 +28,42 @@ func (f *fakeProbe) Run(_ context.Context, _ platform.Session, _ string) canary.
 	return f.result
 }
 
+// dynamicProbe returns a sequence of results (wraps around when exhausted).
+type dynamicProbe struct {
+	results []canary.Result
+	calls   int
+}
+
+func (d *dynamicProbe) Run(_ context.Context, _ platform.Session, _ string) canary.Result {
+	r := d.results[d.calls%len(d.results)]
+	d.calls++
+	return r
+}
+
+// spyNotifier records every Notify call.
+type spyNotifier struct {
+	mu     sync.Mutex
+	calls  []spyCall
+}
+
+type spyCall struct {
+	event  string
+	fields map[string]any
+}
+
+func (s *spyNotifier) Notify(_ context.Context, event notify.Event, fields map[string]any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls = append(s.calls, spyCall{event: event, fields: fields})
+	return nil
+}
+
+func (s *spyNotifier) count() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.calls)
+}
+
 // fakeSessionSource is an alias for canary.SessionSource used in tests.
 type fakeSessionSource = canary.SessionSource
 
@@ -35,6 +73,11 @@ func openTestDB(t *testing.T) *gen.Queries {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	return gen.New(db)
+}
+
+// alwaysSession is a session source that returns a valid session for all platforms.
+func alwaysSession(_ context.Context, _ string) (platform.Session, bool, error) {
+	return platform.Session{AccessToken: "tok"}, true, nil
 }
 
 // TestRunner_TwitchRuns_KickSkippedWhenNoChannel verifies that:
@@ -60,7 +103,7 @@ func TestRunner_TwitchRuns_KickSkippedWhenNoChannel(t *testing.T) {
 	r := canary.NewRunner(q, source, twitchProbe, kickProbe, canary.RunnerSettings{
 		TwitchChannel: "some_streamer",
 		KickChannel:   "", // empty → skip
-	})
+	}, nil)
 
 	require.NoError(t, r.RunOnce(ctx))
 
@@ -100,7 +143,7 @@ func TestRunner_SkipsWhenNoSession(t *testing.T) {
 	r := canary.NewRunner(q, source, twitchProbe, kickProbe, canary.RunnerSettings{
 		TwitchChannel: "some_streamer",
 		KickChannel:   "some_kick_channel",
-	})
+	}, nil)
 
 	require.NoError(t, r.RunOnce(ctx))
 
@@ -123,14 +166,10 @@ func TestRunner_BothRun(t *testing.T) {
 	twitchProbe := &fakeProbe{result: canary.Result{OK: true, Detail: "twitch healthy"}}
 	kickProbe := &fakeProbe{result: canary.Result{OK: false, Detail: "kick unhealthy"}}
 
-	source := fakeSessionSource(func(_ context.Context, plat string) (platform.Session, bool, error) {
-		return platform.Session{AccessToken: "tok"}, true, nil
-	})
-
-	r := canary.NewRunner(q, source, twitchProbe, kickProbe, canary.RunnerSettings{
+	r := canary.NewRunner(q, alwaysSession, twitchProbe, kickProbe, canary.RunnerSettings{
 		TwitchChannel: "twitch_chan",
 		KickChannel:   "kick_chan",
-	})
+	}, nil)
 
 	require.NoError(t, r.RunOnce(ctx))
 
@@ -156,14 +195,10 @@ func TestRunner_Run_ZeroIntervalReturnsImmediately(t *testing.T) {
 	twitchProbe := &fakeProbe{}
 	kickProbe := &fakeProbe{}
 
-	source := fakeSessionSource(func(_ context.Context, _ string) (platform.Session, bool, error) {
-		return platform.Session{AccessToken: "tok"}, true, nil
-	})
-
-	r := canary.NewRunner(q, source, twitchProbe, kickProbe, canary.RunnerSettings{
+	r := canary.NewRunner(q, alwaysSession, twitchProbe, kickProbe, canary.RunnerSettings{
 		TwitchChannel: "chan",
 		KickChannel:   "kkchan",
-	})
+	}, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -180,4 +215,123 @@ func TestRunner_Run_ZeroIntervalReturnsImmediately(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 		t.Fatal("Run with interval=0 should return immediately")
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Notification / transition tests
+// ---------------------------------------------------------------------------
+
+// TestNotify_FirstFail_Fires verifies that a first-ever fail (no previous
+// result) fires the canary notify exactly once.
+func TestNotify_FirstFail_Fires(t *testing.T) {
+	ctx := context.Background()
+	q := openTestDB(t)
+	spy := &spyNotifier{}
+
+	probe := &fakeProbe{result: canary.Result{OK: false, Detail: "beacon timeout"}}
+	r := canary.NewRunner(q, alwaysSession, probe, &fakeProbe{}, canary.RunnerSettings{
+		TwitchChannel: "chan",
+	}, spy)
+
+	require.NoError(t, r.RunOnce(ctx))
+
+	assert.Equal(t, 1, spy.count(), "first fail should fire notify once")
+	if spy.count() > 0 {
+		call := spy.calls[0]
+		assert.Equal(t, notify.EventCanary, call.event, "event must be 'canary'")
+		assert.Equal(t, "twitch", call.fields["platform"], "platform field must be set")
+		assert.Equal(t, "beacon timeout", call.fields["detail"], "detail field must be set")
+	}
+}
+
+// TestNotify_FailFail_NoRefire verifies that a second consecutive fail does
+// NOT re-fire the notification (fail→fail must be suppressed).
+func TestNotify_FailFail_NoRefire(t *testing.T) {
+	ctx := context.Background()
+	q := openTestDB(t)
+	spy := &spyNotifier{}
+
+	probe := &fakeProbe{result: canary.Result{OK: false, Detail: "still broken"}}
+	r := canary.NewRunner(q, alwaysSession, probe, &fakeProbe{}, canary.RunnerSettings{
+		TwitchChannel: "chan",
+	}, spy)
+
+	// First run → notify fires (entering fail state).
+	require.NoError(t, r.RunOnce(ctx))
+	assert.Equal(t, 1, spy.count(), "first fail should fire once")
+
+	// Second run → same fail state, notify must NOT fire again.
+	require.NoError(t, r.RunOnce(ctx))
+	assert.Equal(t, 1, spy.count(), "fail→fail must not re-fire")
+}
+
+// TestNotify_OKThenFail_Fires verifies the canonical OK→fail transition:
+// first run OK (no notify), second run fail (notify fires once).
+func TestNotify_OKThenFail_Fires(t *testing.T) {
+	ctx := context.Background()
+	q := openTestDB(t)
+	spy := &spyNotifier{}
+
+	probe := &dynamicProbe{
+		results: []canary.Result{
+			{OK: true, Detail: "healthy"},   // run 1
+			{OK: false, Detail: "degraded"}, // run 2
+		},
+	}
+	r := canary.NewRunner(q, alwaysSession, probe, &fakeProbe{}, canary.RunnerSettings{
+		TwitchChannel: "chan",
+	}, spy)
+
+	// First run: OK → no notification.
+	require.NoError(t, r.RunOnce(ctx))
+	assert.Equal(t, 0, spy.count(), "OK result must not notify")
+
+	// Second run: fail → one notification.
+	require.NoError(t, r.RunOnce(ctx))
+	assert.Equal(t, 1, spy.count(), "OK→fail transition must fire once")
+}
+
+// TestNotify_NilNotifier_NoPanic verifies that a nil notifier is handled safely
+// (fail does not panic, just skips notification).
+func TestNotify_NilNotifier_NoPanic(t *testing.T) {
+	ctx := context.Background()
+	q := openTestDB(t)
+
+	probe := &fakeProbe{result: canary.Result{OK: false, Detail: "broken"}}
+	r := canary.NewRunner(q, alwaysSession, probe, &fakeProbe{}, canary.RunnerSettings{
+		TwitchChannel: "chan",
+	}, nil) // nil notifier
+
+	assert.NotPanics(t, func() {
+		require.NoError(t, r.RunOnce(ctx))
+	})
+}
+
+// TestNotify_Recovery_NoSpuriousFail verifies that after fail→OK→fail
+// the second fail does fire (re-entering fail state), but the OK in between
+// does NOT fire a fail notification.
+func TestNotify_Recovery_NoSpuriousFail(t *testing.T) {
+	ctx := context.Background()
+	q := openTestDB(t)
+	spy := &spyNotifier{}
+
+	probe := &dynamicProbe{
+		results: []canary.Result{
+			{OK: false, Detail: "fail 1"}, // run 1: first fail → notify
+			{OK: true, Detail: "ok"},      // run 2: recovery → no notify
+			{OK: false, Detail: "fail 2"}, // run 3: re-enter fail → notify again
+		},
+	}
+	r := canary.NewRunner(q, alwaysSession, probe, &fakeProbe{}, canary.RunnerSettings{
+		TwitchChannel: "chan",
+	}, spy)
+
+	require.NoError(t, r.RunOnce(ctx)) // fail → notify (count=1)
+	assert.Equal(t, 1, spy.count(), "first fail: 1 notification")
+
+	require.NoError(t, r.RunOnce(ctx)) // ok → no notify (count=1)
+	assert.Equal(t, 1, spy.count(), "recovery: no new notification")
+
+	require.NoError(t, r.RunOnce(ctx)) // fail again → notify (count=2)
+	assert.Equal(t, 2, spy.count(), "re-enter fail: another notification")
 }

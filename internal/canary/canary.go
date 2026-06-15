@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/aalejandrofer/grubdrops/internal/notify"
 	"github.com/aalejandrofer/grubdrops/internal/platform"
 	"github.com/aalejandrofer/grubdrops/internal/store/gen"
 )
@@ -42,13 +43,15 @@ type RunnerSettings struct {
 //   - a Queries handle for persisting results,
 //   - a SessionSource for borrowing one session per platform,
 //   - the configured TwitchProbe / KickProbe (or test doubles),
-//   - a RunnerSettings snapshot (re-read each tick via the settingsReader).
+//   - a RunnerSettings snapshot (re-read each tick via the settingsReader),
+//   - an optional Notifier for OK→fail transition alerts (nil = no alerts).
 type Runner struct {
 	q              *gen.Queries
 	source         SessionSource
 	twitchProbe    probe
 	kickProbe      probe
 	settingsReader func(ctx context.Context) RunnerSettings
+	notifier       notify.Notifier // nil-safe; no notify when nil
 	log            *slog.Logger
 }
 
@@ -58,13 +61,16 @@ type Runner struct {
 //
 // Use NewRunnerWithSettingsReader when the interval / channels should be
 // re-read from a store on every tick.
-func NewRunner(q *gen.Queries, source SessionSource, twitch, kick probe, settings RunnerSettings) *Runner {
+//
+// notifier may be nil; when nil, no Discord alerts are sent.
+func NewRunner(q *gen.Queries, source SessionSource, twitch, kick probe, settings RunnerSettings, notifier notify.Notifier) *Runner {
 	return &Runner{
 		q:      q,
 		source: source,
 		twitchProbe: twitch,
 		kickProbe:   kick,
 		settingsReader: func(_ context.Context) RunnerSettings { return settings },
+		notifier: notifier,
 		log:    slog.Default().With("component", "canary"),
 	}
 }
@@ -72,11 +78,14 @@ func NewRunner(q *gen.Queries, source SessionSource, twitch, kick probe, setting
 // NewRunnerWithSettingsReader creates a Runner that calls settingsReader on
 // every RunOnce to pick up the latest channel configuration. This is what the
 // production cmd/miner wiring uses.
+//
+// notifier may be nil; when nil, no Discord alerts are sent.
 func NewRunnerWithSettingsReader(
 	q *gen.Queries,
 	source SessionSource,
 	twitch, kick probe,
 	reader func(ctx context.Context) RunnerSettings,
+	notifier notify.Notifier,
 ) *Runner {
 	return &Runner{
 		q:              q,
@@ -84,6 +93,7 @@ func NewRunnerWithSettingsReader(
 		twitchProbe:    twitch,
 		kickProbe:      kick,
 		settingsReader: reader,
+		notifier:       notifier,
 		log:            slog.Default().With("component", "canary"),
 	}
 }
@@ -117,12 +127,33 @@ func (r *Runner) runProbe(ctx context.Context, plat, channel string, p probe) {
 		return
 	}
 
+	// Load previous result BEFORE running the new probe so we can detect
+	// an OK→fail transition (or first-ever fail) for notifications.
+	prev, hasPrev, _ := LoadResult(ctx, r.q, plat)
+
 	result := p.Run(ctx, sess, channel)
 	if err := SaveResult(ctx, r.q, plat, result); err != nil {
 		r.log.Warn("canary: persist result failed", "platform", plat, "err", err)
 		return
 	}
 	r.log.Info("canary: probe complete", "platform", plat, "ok", result.OK, "detail", result.Detail)
+
+	// Notify on entering the failed state:
+	//   - no previous result AND new is fail (first-ever fail), OR
+	//   - previous was OK AND new is fail (OK→fail transition).
+	// fail→fail: no re-notify (prevents noise while the problem persists).
+	if !result.OK && r.notifier != nil {
+		enteringFail := !hasPrev || prev.OK
+		if enteringFail {
+			fields := map[string]any{
+				"platform": plat,
+				"detail":   result.Detail,
+			}
+			if err := r.notifier.Notify(ctx, notify.EventCanary, fields); err != nil {
+				r.log.Warn("canary: notify failed", "platform", plat, "err", err)
+			}
+		}
+	}
 }
 
 // Run probes once immediately (to surface issues without waiting for the first
