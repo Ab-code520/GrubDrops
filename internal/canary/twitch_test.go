@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -65,7 +64,6 @@ func TestTwitchProbe_Error(t *testing.T) {
 	result := probe.Run(context.Background(), platform.Session{AccessToken: "tok"}, "testchannel")
 
 	assert.False(t, result.OK, "expected OK=false when beacon fails")
-	assert.True(t, strings.Contains(result.Detail, "beacon") || result.Detail != "",
-		"detail should describe the failure")
+	assert.Contains(t, result.Detail, "beacon", "detail should describe the beacon failure")
 	assert.False(t, result.CheckedAt.IsZero(), "CheckedAt should be set")
 }
