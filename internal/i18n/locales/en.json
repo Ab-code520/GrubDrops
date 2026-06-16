@@ -400,6 +400,7 @@
   "proxy.test_fail": "Proxy connection failed",
   "proxy.test_not_configured": "Proxy not configured or disabled",
   "flash.proxy_saved": "proxy settings saved",
+  "flash.proxy_invalid_url": "invalid proxy URL — must start with http://, https://, or socks5://",
   "experimental.meta": "Unstable — may not accrue",
   "experimental.kick_watch": "Kick Watch Path",
   "experimental.kick_desc_prefix": "how Kick accrues watch-time ·",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/aalejandrofer/grubdrops/internal/auth"
 	"github.com/aalejandrofer/grubdrops/internal/i18n"
+	"github.com/aalejandrofer/grubdrops/internal/netutil"
 	"github.com/aalejandrofer/grubdrops/internal/auth/oidc"
 	"github.com/aalejandrofer/grubdrops/internal/canary"
 	"github.com/aalejandrofer/grubdrops/internal/gameslug"
@@ -733,11 +735,24 @@ func (d *settingsDeps) getProxy(w http.ResponseWriter, r *http.Request) {
 // postProxy handles POST /settings/proxy — saves proxy settings.
 func (d *settingsDeps) postProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	lang := i18n.DetectLang(r)
 	enabled := r.FormValue("proxy_enabled") == "1"
+	proxyURL := strings.TrimSpace(r.FormValue("proxy_url"))
+
+	// Validate proxy URL scheme if not empty
+	if proxyURL != "" {
+		parsed, err := url.Parse(proxyURL)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https" && parsed.Scheme != "socks5") {
+			d.sm.Put(ctx, "flash", i18n.T(lang, "flash.proxy_invalid_url"))
+			http.Redirect(w, r, "/settings/proxy", http.StatusSeeOther)
+			return
+		}
+	}
+
 	if saveErr(w, d.s.SetProxyEnabled(ctx, enabled)) {
 		return
 	}
-	if saveErr(w, d.s.SetProxyURL(ctx, r.FormValue("proxy_url"))) {
+	if saveErr(w, d.s.SetProxyURL(ctx, proxyURL)) {
 		return
 	}
 	d.sm.Put(ctx, "flash", "flash.proxy_saved")
@@ -754,19 +769,20 @@ func (d *settingsDeps) proxyTest(w http.ResponseWriter, r *http.Request) {
 
 	if !proxyEnabled || proxyURL == "" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--red)">✗ %s</span>`, i18n.T(lang, "proxy.test_not_configured"))
+		fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--red)">✗ %s</span>`, html.EscapeString(i18n.T(lang, "proxy.test_not_configured")))
 		return
 	}
 
-	// Build transport with proxy
-	transport := buildProxyTransport(proxyURL)
+	// Build transport with proxy (using the same logic as runtime)
+	transport := netutil.NewTransport(proxyURL)
+	defer transport.CloseIdleConnections()
 	client := &http.Client{Timeout: 10 * time.Second, Transport: transport}
 
 	// Test by fetching a known endpoint
 	resp, err := client.Get("https://api.ipify.org?format=json")
 	if err != nil {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--red)">✗ %s: %v</span>`, i18n.T(lang, "proxy.test_fail"), err)
+		fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--red)">✗ %s: %s</span>`, html.EscapeString(i18n.T(lang, "proxy.test_fail")), html.EscapeString(err.Error()))
 		return
 	}
 	defer resp.Body.Close()
@@ -776,36 +792,10 @@ func (d *settingsDeps) proxyTest(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--red)">✗ %s</span>`, i18n.T(lang, "proxy.test_fail"))
+		fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--red)">✗ %s</span>`, html.EscapeString(i18n.T(lang, "proxy.test_fail")))
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--green)">✓ %s: %s</span>`, i18n.T(lang, "proxy.test_ok"), result.IP)
-}
-
-// buildProxyTransport creates an http.Transport with proxy support.
-// Supports http://, https://, and socks5:// proxy URLs.
-func buildProxyTransport(proxyURL string) *http.Transport {
-	transport := &http.Transport{}
-	if proxyURL == "" {
-		return transport
-	}
-
-	parsedURL, err := url.Parse(proxyURL)
-	if err != nil {
-		return transport
-	}
-
-	switch parsedURL.Scheme {
-	case "socks5":
-		// For SOCKS5, use golang.org/x/net/proxy
-		// Import would be needed: "golang.org/x/net/proxy"
-		// For now, fall back to http.Transport proxy
-		transport.Proxy = http.ProxyURL(parsedURL)
-	default:
-		// http:// or https://
-		transport.Proxy = http.ProxyURL(parsedURL)
-	}
-	return transport
+	fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--green)">✓ %s: %s</span>`, html.EscapeString(i18n.T(lang, "proxy.test_ok")), html.EscapeString(result.IP))
 }

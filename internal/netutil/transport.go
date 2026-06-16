@@ -37,9 +37,24 @@ func NewTransport(proxyURL string) *http.Transport {
 		if err != nil {
 			return transport
 		}
-		// Wrap the SOCKS5 dialer to implement DialContext
+		// Wrap the SOCKS5 dialer to implement DialContext with context support.
+		// Run the dial in a goroutine so ctx cancellation is respected.
 		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return dialer.Dial(network, addr)
+			type result struct {
+				conn net.Conn
+				err  error
+			}
+			ch := make(chan result, 1)
+			go func() {
+				conn, err := dialer.Dial(network, addr)
+				ch <- result{conn, err}
+			}()
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case r := <-ch:
+				return r.conn, r.err
+			}
 		}
 	default:
 		// http:// or https://
@@ -47,12 +62,4 @@ func NewTransport(proxyURL string) *http.Transport {
 	}
 
 	return transport
-}
-
-// NewHTTPClient creates an http.Client with optional proxy support.
-func NewHTTPClient(proxyURL string, timeout time.Duration) *http.Client {
-	return &http.Client{
-		Timeout:   timeout,
-		Transport: NewTransport(proxyURL),
-	}
 }

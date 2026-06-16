@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -176,23 +177,10 @@ func pickBest(header string) string {
 		q := 1.0
 		if idx := strings.Index(part, ";q="); idx >= 0 {
 			tag = strings.TrimSpace(part[:idx])
-			switch strings.TrimSpace(part[idx+3:]) {
-			case "1", "1.0":
-				q = 1.0
-			case "0.9":
-				q = 0.9
-			case "0.8":
-				q = 0.8
-			case "0.7":
-				q = 0.7
-			case "0.5":
-				q = 0.5
-			case "0.3":
-				q = 0.3
-			case "0.1":
-				q = 0.1
-			default:
-				q = 0.5
+			if parsed, err := strconv.ParseFloat(strings.TrimSpace(part[idx+3:]), 64); err == nil {
+				q = parsed
+			} else {
+				q = 0 // invalid quality = skip
 			}
 		}
 		cands = append(cands, candidate{tag: tag, q: q})
@@ -201,7 +189,7 @@ func pickBest(header string) string {
 	bestTag := ""
 	bestQ := -1.0
 	for _, c := range cands {
-		if c.q <= bestQ && bestTag != "" {
+		if c.q <= 0 || (c.q <= bestQ && bestTag != "") {
 			continue
 		}
 		if isSupported(c.tag) {

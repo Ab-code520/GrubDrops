@@ -400,6 +400,7 @@
   "proxy.test_fail": "代理连接失败",
   "proxy.test_not_configured": "代理未配置或未启用",
   "flash.proxy_saved": "代理设置已保存",
+  "flash.proxy_invalid_url": "代理地址无效 — 必须以 http://、https:// 或 socks5:// 开头",
   "experimental.meta": "不稳定 — 可能不累积",
   "experimental.kick_watch": "Kick 观看路径",
   "experimental.kick_desc_prefix": "Kick 如何累积观看时间 ·",
