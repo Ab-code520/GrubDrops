@@ -67,6 +67,20 @@ func newClient() *client {
 	return c
 }
 
+func newClientWithTransport(transport *http.Transport) *client {
+	jar, _ := cookiejar.New(nil)
+	c := &client{
+		endpoint:     gqlEndpoint,
+		homeURL:      "https://www.twitch.tv",
+		integrityURL: "https://gql.twitch.tv/integrity",
+		http:         &http.Client{Timeout: 20 * time.Second, Jar: jar, Transport: transport},
+		deviceID:     randomHex(16),
+		sessionID:    randomHex(16),
+	}
+	c.transport = httpTransport{c: c}
+	return c
+}
+
 func newTestClient(endpoint string) *client {
 	c := &client{
 		endpoint:     endpoint,

@@ -33,6 +33,14 @@ func NewDiscordWebhook(url string, filter *VerbosityFilter) *DiscordWebhook {
 	}
 }
 
+func NewDiscordWebhookWithTransport(url string, filter *VerbosityFilter, transport *http.Transport) *DiscordWebhook {
+	return &DiscordWebhook{
+		URL:    url,
+		Filter: filter,
+		HTTP:   &http.Client{Timeout: 10 * time.Second, Transport: transport},
+	}
+}
+
 func (d *DiscordWebhook) Notify(ctx context.Context, event Event, fields map[string]any) error {
 	if d.Filter != nil && !d.Filter.Allow[event] {
 		return nil

@@ -33,6 +33,14 @@ func newAuthFlow() *authFlow {
 	}
 }
 
+func newAuthFlowWithTransport(transport *http.Transport) *authFlow {
+	return &authFlow{
+		deviceURL: deviceAuthURL,
+		tokenURL:  tokenURL,
+		http:      &http.Client{Timeout: 20 * time.Second, Transport: transport},
+	}
+}
+
 type deviceInternal struct {
 	DeviceCode string
 }

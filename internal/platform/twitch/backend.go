@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -119,6 +120,21 @@ func New() *Backend {
 	return &Backend{
 		c:                       c,
 		auth:                    newAuthFlow(),
+		disc:                    &discovery{c: c},
+		chans:                   &channels{c: c},
+		watch:                   newWatch(),
+		claim:                   &claimer{c: c},
+		adv:                     &advisory{c: c},
+		allowedLoginsByCampaign: map[string][]string{},
+	}
+}
+
+// NewWithTransport creates a Backend with a custom HTTP transport (e.g. for proxy support).
+func NewWithTransport(transport *http.Transport) *Backend {
+	c := newClientWithTransport(transport)
+	return &Backend{
+		c:                       c,
+		auth:                    newAuthFlowWithTransport(transport),
 		disc:                    &discovery{c: c},
 		chans:                   &channels{c: c},
 		watch:                   newWatch(),

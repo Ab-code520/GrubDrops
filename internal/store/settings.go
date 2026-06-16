@@ -30,6 +30,8 @@ const (
 	keyCanaryTwitchChannel = "settings:canary_twitch_channel"
 	keyCanaryKickChannel   = "settings:canary_kick_channel"
 	keyCanaryIntervalSec   = "settings:canary_interval_sec"
+	keyProxyURL            = "settings:proxy_url"
+	keyProxyEnabled        = "settings:proxy_enabled"
 )
 
 // KickWatchMode selects how Kick watch-time is accrued.
@@ -341,4 +343,30 @@ func (s *Settings) CanaryIntervalSec(ctx context.Context) (int, error) {
 
 func (s *Settings) SetCanaryIntervalSec(ctx context.Context, n int) error {
 	return s.setString(ctx, keyCanaryIntervalSec, strconv.Itoa(n))
+}
+
+// ProxyURL returns the configured proxy URL (e.g. "http://127.0.0.1:7890"
+// or "socks5://127.0.0.1:1080"). Empty means no proxy.
+func (s *Settings) ProxyURL(ctx context.Context) (string, error) {
+	return s.getString(ctx, keyProxyURL)
+}
+
+func (s *Settings) SetProxyURL(ctx context.Context, url string) error {
+	return s.setString(ctx, keyProxyURL, strings.TrimSpace(url))
+}
+
+// ProxyEnabled returns whether the proxy is active. Default false.
+func (s *Settings) ProxyEnabled(ctx context.Context) (bool, error) {
+	v, err := s.getString(ctx, keyProxyEnabled)
+	if err != nil || v == "" {
+		return false, err
+	}
+	return v == "1", nil
+}
+
+func (s *Settings) SetProxyEnabled(ctx context.Context, enabled bool) error {
+	if enabled {
+		return s.setString(ctx, keyProxyEnabled, "1")
+	}
+	return s.setString(ctx, keyProxyEnabled, "0")
 }

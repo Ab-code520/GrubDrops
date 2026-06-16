@@ -21,6 +21,7 @@ import (
 	"github.com/aalejandrofer/grubdrops/internal/auth/browser"
 	"github.com/aalejandrofer/grubdrops/internal/i18n"
 	"github.com/aalejandrofer/grubdrops/internal/auth/oidc"
+	"github.com/aalejandrofer/grubdrops/internal/netutil"
 	"github.com/aalejandrofer/grubdrops/internal/authcheck"
 	"github.com/aalejandrofer/grubdrops/internal/canary"
 	"github.com/aalejandrofer/grubdrops/internal/config"
@@ -146,6 +147,16 @@ func run() error {
 		dockerCtl = dc
 		logger.Info("docker control enabled for on-demand kick sidecars")
 	}
+
+	// Proxy support: read from settings and create shared transport
+	proxyURL, _ := settingsStore.ProxyURL(ctx)
+	proxyEnabled, _ := settingsStore.ProxyEnabled(ctx)
+	var proxyTransport *http.Transport
+	if proxyEnabled && proxyURL != "" {
+		proxyTransport = netutil.NewTransport(proxyURL)
+		logger.Info("proxy enabled", "url", proxyURL)
+	}
+
 	// Kick runs over the pure-HTTP utls transport (Chrome TLS fingerprint) and
 	// no longer needs the chromedp sidecar for data — Kick's API 403s any
 	// CDP browser but accepts utls. The browser client (may be nil) is kept
@@ -187,7 +198,12 @@ func run() error {
 	// probe (ProbeBeacon). It is always created even in browser-watch mode
 	// because BrowserBackend does not implement ProbeBeacon and the canary
 	// only needs the beacon transport, not the full watch stack.
-	twitchBackend := twitch.New()
+	var twitchBackend *twitch.Backend
+	if proxyTransport != nil {
+		twitchBackend = twitch.NewWithTransport(proxyTransport)
+	} else {
+		twitchBackend = twitch.New()
+	}
 	if twitchBrowserEnabled && browserClient != nil {
 		registry.Register(twitch.NewBrowserBackend(browserClient))
 		logger.Info("twitch backend: BROWSER (via sidecar)")
@@ -229,7 +245,12 @@ func run() error {
 		const botUsername = "GrubDrops"
 		var fallback notify.Notifier
 		if globalURL != "" {
-			wh := notify.NewDiscordWebhook(globalURL, filter)
+			var wh *notify.DiscordWebhook
+			if proxyTransport != nil {
+				wh = notify.NewDiscordWebhookWithTransport(globalURL, filter, proxyTransport)
+			} else {
+				wh = notify.NewDiscordWebhook(globalURL, filter)
+			}
 			wh.Username = botUsername
 			wh.AvatarURL = avatarURL
 			fallback = wh

@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"runtime"
 	"strconv"
 	"strings"
@@ -127,6 +129,10 @@ type settingsPageData struct {
 	// CanaryPanelAutoRefresh, when true, adds a one-shot hx-trigger on the
 	// canary panel so the browser re-fetches the panel ~8s after a run-now.
 	CanaryPanelAutoRefresh bool
+
+	// Proxy settings
+	ProxyURL     string
+	ProxyEnabled bool
 }
 
 func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active string) {
@@ -189,6 +195,9 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 	canaryTwitchView := buildCanaryView(ctx, d.q, "twitch", canaryTwitchCh, lang)
 	canaryKickView := buildCanaryView(ctx, d.q, "kick", canaryKickCh, lang)
 
+	proxyURL, _ := d.s.ProxyURL(ctx)
+	proxyEnabled, _ := d.s.ProxyEnabled(ctx)
+
 	render(w, r, d.t, "settings.html", templateData{
 		AuthedAdmin: true, CSRFToken: csrfToken(r), Active: active,
 		Page: settingsPageData{
@@ -222,6 +231,8 @@ func (d *settingsDeps) renderTab(w http.ResponseWriter, r *http.Request, active 
 			CanaryTwitchChannel:  canaryTwitchCh,
 			CanaryKickChannel:    canaryKickCh,
 			CanaryIntervalSec:    canaryIntervalSec,
+			ProxyURL:             proxyURL,
+			ProxyEnabled:         proxyEnabled,
 		},
 		Flash: flash,
 	})
@@ -712,4 +723,89 @@ func (d *settingsDeps) renderCanaryPanel(w http.ResponseWriter, r *http.Request,
 		AuthedAdmin: true, CSRFToken: csrfToken(r), Active: "health",
 		Page: page,
 	})
+}
+
+// getProxy handles GET /settings/proxy — renders the Proxy settings tab.
+func (d *settingsDeps) getProxy(w http.ResponseWriter, r *http.Request) {
+	d.renderTab(w, r, "proxy")
+}
+
+// postProxy handles POST /settings/proxy — saves proxy settings.
+func (d *settingsDeps) postProxy(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	enabled := r.FormValue("proxy_enabled") == "1"
+	if saveErr(w, d.s.SetProxyEnabled(ctx, enabled)) {
+		return
+	}
+	if saveErr(w, d.s.SetProxyURL(ctx, r.FormValue("proxy_url"))) {
+		return
+	}
+	d.sm.Put(ctx, "flash", "flash.proxy_saved")
+	http.Redirect(w, r, "/settings/proxy", http.StatusSeeOther)
+}
+
+// proxyTest handles POST /settings/proxy/test — tests the proxy connection.
+// Returns an HTMX fragment with the test result.
+func (d *settingsDeps) proxyTest(w http.ResponseWriter, r *http.Request) {
+	lang := i18n.DetectLang(r)
+	ctx := r.Context()
+	proxyURL, _ := d.s.ProxyURL(ctx)
+	proxyEnabled, _ := d.s.ProxyEnabled(ctx)
+
+	if !proxyEnabled || proxyURL == "" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--red)">✗ %s</span>`, i18n.T(lang, "proxy.test_not_configured"))
+		return
+	}
+
+	// Build transport with proxy
+	transport := buildProxyTransport(proxyURL)
+	client := &http.Client{Timeout: 10 * time.Second, Transport: transport}
+
+	// Test by fetching a known endpoint
+	resp, err := client.Get("https://api.ipify.org?format=json")
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--red)">✗ %s: %v</span>`, i18n.T(lang, "proxy.test_fail"), err)
+		return
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		IP string `json:"ip"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--red)">✗ %s</span>`, i18n.T(lang, "proxy.test_fail"))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `<span class="proxy-test-result" style="color:var(--green)">✓ %s: %s</span>`, i18n.T(lang, "proxy.test_ok"), result.IP)
+}
+
+// buildProxyTransport creates an http.Transport with proxy support.
+// Supports http://, https://, and socks5:// proxy URLs.
+func buildProxyTransport(proxyURL string) *http.Transport {
+	transport := &http.Transport{}
+	if proxyURL == "" {
+		return transport
+	}
+
+	parsedURL, err := url.Parse(proxyURL)
+	if err != nil {
+		return transport
+	}
+
+	switch parsedURL.Scheme {
+	case "socks5":
+		// For SOCKS5, use golang.org/x/net/proxy
+		// Import would be needed: "golang.org/x/net/proxy"
+		// For now, fall back to http.Transport proxy
+		transport.Proxy = http.ProxyURL(parsedURL)
+	default:
+		// http:// or https://
+		transport.Proxy = http.ProxyURL(parsedURL)
+	}
+	return transport
 }

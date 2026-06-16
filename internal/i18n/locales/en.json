@@ -18,6 +18,7 @@
   "settings_subnav.security": "Security",
   "settings_subnav.health": "Health",
   "settings_subnav.experimental": "Experimental",
+  "settings_subnav.proxy": "Proxy",
 
   "dashboard.title": "Console · GrubDrops",
   "dashboard.welcome": "// welcome",
@@ -385,6 +386,20 @@
   "logging.save": "Save",
 
   "experimental.heading": "Experimental",
+
+  "proxy.heading": "Proxy Settings",
+  "proxy.meta": "Network proxy",
+  "proxy.enabled": "Enable Proxy",
+  "proxy.enabled_desc": "Route all external requests through the proxy",
+  "proxy.on": "on",
+  "proxy.url": "Proxy URL",
+  "proxy.url_desc": "Supports http://, https://, and socks5:// protocols",
+  "proxy.save": "Save",
+  "proxy.test": "Test Connection",
+  "proxy.test_ok": "Proxy connected, IP:",
+  "proxy.test_fail": "Proxy connection failed",
+  "proxy.test_not_configured": "Proxy not configured or disabled",
+  "flash.proxy_saved": "proxy settings saved",
   "experimental.meta": "Unstable — may not accrue",
   "experimental.kick_watch": "Kick Watch Path",
   "experimental.kick_desc_prefix": "how Kick accrues watch-time ·",

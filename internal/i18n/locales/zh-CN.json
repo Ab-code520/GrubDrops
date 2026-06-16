@@ -18,6 +18,7 @@
   "settings_subnav.security": "安全",
   "settings_subnav.health": "健康检查",
   "settings_subnav.experimental": "实验性",
+  "settings_subnav.proxy": "代理",
 
   "dashboard.title": "控制台 · GrubDrops",
   "dashboard.welcome": "// 欢迎",
@@ -385,6 +386,20 @@
   "logging.save": "保存",
 
   "experimental.heading": "实验性",
+
+  "proxy.heading": "代理设置",
+  "proxy.meta": "网络代理",
+  "proxy.enabled": "启用代理",
+  "proxy.enabled_desc": "所有外部请求通过代理路由",
+  "proxy.on": "开",
+  "proxy.url": "代理地址",
+  "proxy.url_desc": "支持 http://、https:// 和 socks5:// 协议",
+  "proxy.save": "保存",
+  "proxy.test": "测试连接",
+  "proxy.test_ok": "代理连接成功，IP：",
+  "proxy.test_fail": "代理连接失败",
+  "proxy.test_not_configured": "代理未配置或未启用",
+  "flash.proxy_saved": "代理设置已保存",
   "experimental.meta": "不稳定 — 可能不累积",
   "experimental.kick_watch": "Kick 观看路径",
   "experimental.kick_desc_prefix": "Kick 如何累积观看时间 ·",

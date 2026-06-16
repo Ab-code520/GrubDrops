@@ -265,6 +265,36 @@
     </section>
     {{end}}
 
+    {{if eq $.Active "proxy"}}
+    <section class="settings-card">
+      <header class="section-h"><h3>{{t "proxy.heading"}}</h3><span class="meta">{{t "proxy.meta"}}</span></header>
+      <form method="post" action="/settings/proxy" id="proxy-form">
+        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+        <div class="kvedit">
+          <div class="row">
+            <span class="k">{{t "proxy.enabled"}}</span>
+            <span class="d">{{t "proxy.enabled_desc"}}</span>
+            <span class="v"><label class="cb"><input type="checkbox" name="proxy_enabled" value="1" {{if .ProxyEnabled}}checked{{end}}> {{t "proxy.on"}}</label></span>
+          </div>
+          <div class="row">
+            <span class="k">{{t "proxy.url"}}</span>
+            <span class="d">{{t "proxy.url_desc"}}</span>
+            <span class="v grow"><input type="text" name="proxy_url" value="{{.ProxyURL}}" placeholder="http://127.0.0.1:7890"></span>
+          </div>
+        </div>
+        <div class="row" style="margin-top:18px;align-items:center;gap:18px;">
+          <button class="btn-linear" type="button" style="color:var(--muted);"
+            hx-post="/settings/proxy/test"
+            hx-target="#proxy-test-result"
+            hx-swap="innerHTML"
+            hx-headers='{"X-CSRF-Token": "{{$.CSRFToken}}"}'>{{t "proxy.test"}} →</button>
+          <span id="proxy-test-result"></span>
+          <button class="btn-linear" type="submit" style="margin-left:auto;">{{t "proxy.save"}} →</button>
+        </div>
+      </form>
+    </section>
+    {{end}}
+
     {{if eq $.Active "health"}}
 <section class="settings-card">
   <header class="section-h"><h3>{{t "health.heading"}}</h3><span class="meta">{{t "health.transport"}}</span></header>
