@@ -352,8 +352,8 @@ func (d dashboardDeps) collectPage(r *http.Request) dashPage {
 		Events:        eventsFromRing(d.ring, "", "", accs, d.loc),
 		EventAccounts: eventAccountsFrom(accs),
 		EventFilter:   "all",
-		UpdatedAt:     nowPoll(time.Now()),
-		Uptime:        formatUptime(time.Since(d.start)),
+		UpdatedAt:     nowPoll(time.Now(), lang),
+		Uptime:        formatUptime(time.Since(d.start), lang),
 	}
 	// "X / Y collected": Y = total discovered drops across active
 	// campaigns (one per benefit). X = drops COMPLETED, i.e. every account
@@ -688,9 +688,9 @@ func mineCardFromSnap(a gen.Account, s watcher.Snapshot, lang string) dashMineCa
 	switch s.State {
 	case "watching":
 		c.StateSub = "mining.live"
-		c.Uptime = formatShort(time.Since(s.StartedAt))
+		c.Uptime = formatShort(time.Since(s.StartedAt), lang)
 		if !s.LastPollAt.IsZero() {
-			c.LastPoll = formatShort(time.Since(s.LastPollAt)) + " " + i18n.T(lang, "time.ago")
+			c.LastPoll = formatShort(time.Since(s.LastPollAt), lang) + " " + i18n.T(lang, "time.ago")
 		}
 		c.Channel = s.Channel
 		c.ChannelInitial = initial(s.Channel)
@@ -840,13 +840,13 @@ func nextClaimsFrom(cards []dashMineCard) []dashMineCard {
 	return active
 }
 
-func formatUptime(d time.Duration) string {
+func formatUptime(d time.Duration, lang string) string {
 	h := int(d.Hours())
 	m := int(d.Minutes()) % 60
 	if h == 0 {
-		return fmt.Sprintf("%dm", m)
+		return fmt.Sprintf("%d%s", m, i18n.T(lang, "time.minutes"))
 	}
-	return fmt.Sprintf("%dh %02dm", h, m)
+	return fmt.Sprintf("%d%s %02d%s", h, i18n.T(lang, "time.hours"), m, i18n.T(lang, "time.minutes"))
 }
 
 func formatHM(d time.Duration) string {
@@ -858,13 +858,13 @@ func formatHM(d time.Duration) string {
 	return fmt.Sprintf("%02d:%02d", h, m)
 }
 
-func formatShort(d time.Duration) string {
+func formatShort(d time.Duration, lang string) string {
 	m := int(d.Minutes())
 	s := int(d.Seconds()) % 60
 	if m == 0 {
-		return fmt.Sprintf("%ds", s)
+		return fmt.Sprintf("%d%s", s, i18n.T(lang, "time.seconds"))
 	}
-	return fmt.Sprintf("%dm%02ds", m, s)
+	return fmt.Sprintf("%d%s%02d%s", m, i18n.T(lang, "time.minutes"), s, i18n.T(lang, "time.seconds"))
 }
 
 func initial(s string) string {
@@ -1121,7 +1121,7 @@ func (d dashboardDeps) accountDetail(w http.ResponseWriter, r *http.Request) {
 		WatchETA:        etaFrom(snap.MinutesWatched, snap.RequiredMinutes),
 	}
 	if !snap.StartedAt.IsZero() && snap.State == "watching" {
-		detail.Uptime = formatShort(time.Since(snap.StartedAt))
+		detail.Uptime = formatShort(time.Since(snap.StartedAt), lang)
 	}
 
 	// Whitelist / priority
@@ -1201,6 +1201,6 @@ func stateLabel(s string) string {
 }
 
 // nowPoll formats how long ago t was, for the "last poll" display.
-func nowPoll(t time.Time) string {
-	return fmt.Sprintf("%.1fs ago", time.Since(t).Seconds())
+func nowPoll(t time.Time, lang string) string {
+	return fmt.Sprintf("%.1f%s %s", time.Since(t).Seconds(), i18n.T(lang, "time.seconds"), i18n.T(lang, "time.ago"))
 }

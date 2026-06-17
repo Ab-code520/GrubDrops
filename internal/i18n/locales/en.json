@@ -329,6 +329,7 @@
   "notify.discord": "Discord",
   "notify.webhook": "discord webhook",
   "notify.avatar": "bot avatar",
+  "notify.avatar_desc": "optional — shown as the sender avatar",
   "notify.notify_on": "notify on",
   "notify.claims": "claims",
   "notify.progress": "progress",

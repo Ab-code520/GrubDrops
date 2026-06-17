@@ -329,6 +329,7 @@
   "notify.discord": "Discord",
   "notify.webhook": "Discord Webhook",
   "notify.avatar": "机器人头像",
+  "notify.avatar_desc": "可选 — 显示为发送者头像",
   "notify.notify_on": "通知类型",
   "notify.claims": "领取",
   "notify.progress": "进度",
