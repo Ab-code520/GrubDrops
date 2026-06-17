@@ -68,11 +68,12 @@ type PubSubClient struct {
 	authToken string
 	handlers  PubSubHandlers
 
-	mu     sync.Mutex
-	topics map[string]struct{}
-	conn   *websocket.Conn
-	closed bool
-	cancel context.CancelFunc // stops the Run loop
+	mu       sync.Mutex
+	topics   map[string]struct{}
+	conn     *websocket.Conn
+	closed   bool
+	cancel   context.CancelFunc // stops the Run loop
+	writeMu  sync.Mutex         // protects WebSocket writes
 }
 
 // NewPubSubClient builds a client. Call Connect to dial.
@@ -148,6 +149,8 @@ func (p *PubSubClient) AddTopic(topic string) {
 	if dup || conn == nil {
 		return
 	}
+	p.writeMu.Lock()
+	defer p.writeMu.Unlock()
 	if err := writeListen(conn, p.authToken, []string{topic}); err != nil {
 		slog.Warn("pubsub add topic write failed", "topic", topic, "err", err)
 	}
@@ -166,6 +169,8 @@ func (p *PubSubClient) RemoveTopic(topic string) {
 	if conn == nil {
 		return
 	}
+	p.writeMu.Lock()
+	defer p.writeMu.Unlock()
 	frame := map[string]any{
 		"type":  "UNLISTEN",
 		"nonce": newNonce(),
@@ -191,7 +196,10 @@ func (p *PubSubClient) dialAndPump(ctx context.Context) error {
 	}
 	p.mu.Unlock()
 	if len(topics) > 0 {
-		if err := writeListen(conn, p.authToken, topics); err != nil {
+		p.writeMu.Lock()
+		err := writeListen(conn, p.authToken, topics)
+		p.writeMu.Unlock()
+		if err != nil {
 			return fmt.Errorf("listen: %w", err)
 		}
 	}
@@ -209,7 +217,10 @@ func (p *PubSubClient) dialAndPump(ctx context.Context) error {
 			case <-pumpCtx.Done():
 				return
 			case <-t.C:
-				if err := conn.WriteJSON(map[string]any{"type": "PING"}); err != nil {
+				p.writeMu.Lock()
+				err := conn.WriteJSON(map[string]any{"type": "PING"})
+				p.writeMu.Unlock()
+				if err != nil {
 					slog.Warn("pubsub ping write failed", "err", err)
 					cancel()
 					return
