@@ -464,6 +464,7 @@
   "login_kick.optional": "optional",
   "login_kick.cancel": "cancel",
   "login_kick.authorize_btn": "Authorize",
+  "login_kick.error.persist": "failed to persist session",
 
   "login_twitch.title": "Twitch login · GrubDrops",
   "login_twitch.device_code": "// twitch · device-code",
@@ -543,6 +544,11 @@
   "flash.kick_cookies_persisted": "Kick cookies persisted — watcher will verify shortly",
   "flash.kick_session_verified": "Kick session verified ✓",
   "flash.twitch_cookie_imported": "Twitch cookie imported successfully ✓",
+
+  "notify.no_notifier": "no notifier configured",
+  "notify.no_webhook": "no webhook configured — set a global or per-account webhook and Save first",
+  "notify.test_failed": "test failed",
+  "notify.test_sent": "test sent ✓ — check Discord",
 
   "login_twitch_cookie.title": "Twitch cookie import · GrubDrops",
   "login_twitch_cookie.authorize": "// twitch · authorize",

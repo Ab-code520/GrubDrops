@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	pb "github.com/aalejandrofer/grubdrops/internal/auth/browser/gen/browser/v1"
+	"github.com/aalejandrofer/grubdrops/internal/i18n"
 	"github.com/aalejandrofer/grubdrops/internal/platform"
 	"github.com/aalejandrofer/grubdrops/internal/store"
 	"github.com/aalejandrofer/grubdrops/internal/store/gen"
@@ -90,7 +91,7 @@ func (d *loginKickDeps) post(w http.ResponseWriter, r *http.Request) {
 
 	verified, err := d.persistKickSession(r.Context(), id, form)
 	if err != nil {
-		d.renderError(w, r, id, acc.DisplayName, "failed to persist session: "+err.Error()+persistErrorHint(err))
+		d.renderError(w, r, id, acc.DisplayName, i18n.T(i18n.DetectLang(r), "login_kick.error.persist")+persistErrorHint(err))
 		return
 	}
 

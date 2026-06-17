@@ -415,7 +415,7 @@ func (d *settingsDeps) notifyTest(w http.ResponseWriter, r *http.Request) {
 
 	if d.notifier == nil {
 		slog.Warn("notify test: no notifier wired", "kind", "notify")
-		writeResult(false, "no notifier configured")
+		writeResult(false, i18n.T(lang, "notify.no_notifier"))
 		return
 	}
 	// A claim-shaped sample: rich fields so the rendered embed mirrors a real
@@ -449,7 +449,7 @@ func (d *settingsDeps) notifyTest(w http.ResponseWriter, r *http.Request) {
 		}
 		if _, ok := sample["account"]; !ok {
 			slog.Warn("notify test: no webhook configured", "kind", "notify")
-			writeResult(false, "no webhook configured — set a global or per-account webhook and Save first")
+			writeResult(false, i18n.T(lang, "notify.no_webhook"))
 			return
 		}
 	}
@@ -459,11 +459,11 @@ func (d *settingsDeps) notifyTest(w http.ResponseWriter, r *http.Request) {
 	// delivers even when the user has every real notification kind toggled off.
 	if err := d.notifier.Notify(ctx, "test", sample); err != nil {
 		slog.Warn("notify test failed", "kind", "error", "target", target, "err", err)
-		writeResult(false, "failed: "+err.Error())
+		writeResult(false, i18n.T(lang, "notify.test_failed")+": "+err.Error())
 		return
 	}
 	slog.Info("notify test sent", "kind", "notify", "target", target)
-	writeResult(true, "test sent ✓ — check Discord")
+	writeResult(true, i18n.T(lang, "notify.test_sent"))
 }
 
 // globalGamesAdd handles POST /settings/global-games/add — accepts a

@@ -464,6 +464,7 @@
   "login_kick.optional": "可选",
   "login_kick.cancel": "取消",
   "login_kick.authorize_btn": "授权",
+  "login_kick.error.persist": "保存会话失败",
 
   "login_twitch.title": "Twitch 登录 · GrubDrops",
   "login_twitch.device_code": "// twitch · 设备代码",
@@ -543,6 +544,11 @@
   "flash.kick_cookies_persisted": "Kick Cookies 已保存 — 监视器将很快验证",
   "flash.kick_session_verified": "Kick 会话已验证 ✓",
   "flash.twitch_cookie_imported": "Twitch Cookie 导入成功 ✓",
+
+  "notify.no_notifier": "未配置通知器",
+  "notify.no_webhook": "未配置 Webhook — 请先设置全局或每个账号的 Webhook 并保存",
+  "notify.test_failed": "测试失败",
+  "notify.test_sent": "测试已发送 ✓ — 请检查 Discord",
 
   "login_twitch_cookie.title": "Twitch Cookie 导入 · GrubDrops",
   "login_twitch_cookie.authorize": "// twitch · 授权",
