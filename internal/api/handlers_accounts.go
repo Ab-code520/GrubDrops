@@ -40,11 +40,13 @@ type accountsDeps struct {
 // applyReload calls the scheduler reload hook if wired, swallowing
 // errors with a log. Used by every per-account whitelist mutation
 // so the watcher picks up new closures without manual Apply.
+// Uses rootCtx (not the request context) so the reload survives
+// the HTTP redirect that follows.
 func (d accountsDeps) applyReload(ctx context.Context) {
 	if d.reload == nil {
 		return
 	}
-	if err := d.reload(ctx); err != nil {
+	if err := d.reload(d.rootCtx); err != nil {
 		slog.Warn("accounts: scheduler reload failed after whitelist change", "err", err)
 	}
 }

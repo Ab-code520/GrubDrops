@@ -149,8 +149,8 @@ func run() error {
 	}
 
 	// Proxy support: read from settings and create shared transport
-	proxyURL, _ := settingsStore.ProxyURL(ctx)
-	proxyEnabled, _ := settingsStore.ProxyEnabled(ctx)
+	proxyURL := settingOr(logger, settingsStore.ProxyURL(ctx), "", "proxy_url")
+	proxyEnabled := settingOr(logger, settingsStore.ProxyEnabled(ctx), false, "proxy_enabled")
 	var proxyTransport *http.Transport
 	if proxyEnabled && proxyURL != "" {
 		proxyTransport = netutil.NewTransport(proxyURL)
@@ -181,7 +181,7 @@ func run() error {
 	// internal/platform/kick/wswatch.go). The two are mutually exclusive (one
 	// active watch per account). EnableBrowserWatch no-ops + warns if no sidecar
 	// client is configured.
-	kickWatchMode, _ := settingsStore.KickWatchMode(ctx)
+	kickWatchMode := settingOr(logger, settingsStore.KickWatchMode(ctx), store.KickWatchModeBrowser, "kick_watch_mode")
 	switch kickWatchMode {
 	case store.KickWatchModeWS:
 		// pure WebSocket, no browser — nothing to enable.
@@ -386,12 +386,12 @@ func run() error {
 		// PriorityMode is a global setting — read once per build (i.e.
 		// per Reload). Watcher snapshots the value for the lifetime of
 		// the entry; the next Reload picks up changes.
-		priorityMode, _ := settingsStore.PriorityMode(ctx)
+		priorityMode := settingOr(logger, settingsStore.PriorityMode(ctx), store.PriorityModeOrdered, "priority_mode")
 
 		// Runtime cadence + progress-notify granularity — read per build (per
 		// Reload) so saving on /settings + reloading takes effect.
-		tickSec, _ := settingsStore.TickIntervalSec(ctx)
-		progressStep, _ := settingsStore.ProgressNotifyStepPct(ctx)
+		tickSec := settingOr(logger, settingsStore.TickIntervalSec(ctx), int64(60), "tick_interval_sec")
+		progressStep := settingOr(logger, settingsStore.ProgressNotifyStepPct(ctx), int64(25), "notify_progress_step_pct")
 
 		// Manual "I've linked it" overrides — campaign ids the user asserted
 		// are account-linked. Loaded per build (per Reload) so toggling +
@@ -478,7 +478,7 @@ func run() error {
 	// game opt-ins; non-whitelisted games are never scraped.
 	// Cadence comes from the /settings DB value (minutes); the env var,
 	// when set, overrides it (ops escape hatch).
-	discMin, _ := settingsStore.DiscoveryIntervalMin(ctx)
+	discMin := settingOr(logger, settingsStore.DiscoveryIntervalMin(ctx), int64(30), "discovery_interval_min")
 	discoveryInterval := parseDuration(os.Getenv("GRUB_DISCOVERY_INTERVAL"), time.Duration(discMin)*time.Minute)
 	startDiscovery(ctx, logger, q, sessions, registry, campaignPersister, discoveryInterval)
 
@@ -523,13 +523,13 @@ func run() error {
 		canary.NewTwitchProbe(twitchBackend, 5*time.Second),
 		canary.NewKickProbe(kickBackend, 45*time.Second),
 		func(runCtx context.Context) canary.RunnerSettings {
-			twCh, _ := settingsStore.CanaryTwitchChannel(runCtx)
-			kkCh, _ := settingsStore.CanaryKickChannel(runCtx)
+			twCh := settingOr(logger, settingsStore.CanaryTwitchChannel(runCtx), "", "canary_twitch_channel")
+			kkCh := settingOr(logger, settingsStore.CanaryKickChannel(runCtx), "", "canary_kick_channel")
 			return canary.RunnerSettings{TwitchChannel: twCh, KickChannel: kkCh}
 		},
 		notifier,
 	)
-	canaryIntervalSec, _ := settingsStore.CanaryIntervalSec(ctx)
+	canaryIntervalSec := settingOr(logger, settingsStore.CanaryIntervalSec(ctx), int64(3600), "canary_interval_sec")
 	canaryInterval := parseDuration(os.Getenv("GRUB_CANARY_INTERVAL"), time.Duration(canaryIntervalSec)*time.Second)
 	go canaryRunner.Run(ctx, canaryInterval)
 
@@ -848,4 +848,14 @@ func maskProxyURL(rawURL string) string {
 	masked := *u
 	masked.User = url.UserPassword(u.User.Username(), "***")
 	return masked.String()
+}
+
+// settingOr logs a warning and returns the fallback when a settings read fails.
+// Used to make ignored errors visible without cluttering every call site.
+func settingOr[T any](logger *slog.Logger, v T, err error, fallback T, key string) T {
+	if err != nil {
+		logger.Warn("settings read failed, using default", "key", key, "err", err)
+		return fallback
+	}
+	return v
 }
