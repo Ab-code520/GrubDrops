@@ -200,12 +200,12 @@
           <div class="row">
             <span class="k">{{t "runtime.tick_interval"}}</span>
             <span class="d">{{t "runtime.tick_desc_prefix"}} <b>{{t "runtime.tick_desc_bold"}}</b> {{t "runtime.tick_desc_suffix"}}</span>
-            <span class="v"><input type="number" name="tick_interval_sec" value="{{.TickIntervalSec}}" min="1" max="300"><span class="u">s</span></span>
+            <span class="v"><input type="number" name="tick_interval_sec" value="{{.TickIntervalSec}}" min="1" max="300"><span class="u">{{t "time.seconds"}}</span></span>
           </div>
           <div class="row">
             <span class="k">{{t "runtime.discovery_interval"}}</span>
             <span class="d">{{t "runtime.disc_desc_prefix"}} <b>{{t "runtime.disc_desc_bold"}}</b> {{t "runtime.disc_desc_suffix"}}</span>
-            <span class="v"><input type="number" name="discovery_interval_min" value="{{.DiscoveryIntervalMin}}" min="1" max="1440"><span class="u">min</span></span>
+            <span class="v"><input type="number" name="discovery_interval_min" value="{{.DiscoveryIntervalMin}}" min="1" max="1440"><span class="u">{{t "time.minutes_short"}}</span></span>
           </div>
         </div>
         <div class="row" style="margin-top:18px;justify-content:flex-end;">

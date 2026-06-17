@@ -596,6 +596,7 @@
   "time.days_short": "d",
   "time.hours": "h",
   "time.minutes": "m",
+  "time.minutes_short": "min",
   "time.seconds": "s",
   "time.ago": "ago",
   "time.ended": "ended",

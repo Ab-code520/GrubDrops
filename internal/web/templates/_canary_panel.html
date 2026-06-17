@@ -71,7 +71,7 @@
     <div class="row">
       <span class="k">{{t "canary.interval"}}</span>
       <span class="d">{{t "canary.interval_desc"}}</span>
-      <span class="v"><input type="number" name="canary_interval_sec" value="{{.CanaryIntervalSec}}" min="0" max="86400"><span class="u">s</span></span>
+      <span class="v"><input type="number" name="canary_interval_sec" value="{{.CanaryIntervalSec}}" min="0" max="86400"><span class="u">{{t "time.seconds"}}</span></span>
     </div>
     {{end}}
   </div>

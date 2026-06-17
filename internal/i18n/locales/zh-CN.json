@@ -596,6 +596,7 @@
   "time.days_short": "天",
   "time.hours": "时",
   "time.minutes": "分",
+  "time.minutes_short": "分钟",
   "time.seconds": "秒",
   "time.ago": "前",
   "time.ended": "已结束",
