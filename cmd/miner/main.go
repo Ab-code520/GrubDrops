@@ -423,6 +423,21 @@ func run() error {
 		if err != nil {
 			return err
 		}
+		// Collect active account IDs for cleanup
+		activeIDs := make(map[string]bool, len(accs))
+		for _, a := range accs {
+			activeIDs[a.ID] = true
+		}
+		// Clean up backends for deleted accounts
+		twitchBackendsMu.Lock()
+		for id, bk := range twitchBackends {
+			if !activeIDs[id] {
+				bk.Close()
+				delete(twitchBackends, id)
+				logger.Info("closed twitch backend for removed account", "account", id)
+			}
+		}
+		twitchBackendsMu.Unlock()
 		builders := make([]scheduler.EntryBuilder, 0, len(accs))
 		for _, a := range accs {
 			a := a
@@ -594,6 +609,15 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+
+	// Close all Twitch backends to stop PubSub goroutines
+	twitchBackendsMu.Lock()
+	for id, bk := range twitchBackends {
+		bk.Close()
+		logger.Info("closed twitch backend", "account", id)
+	}
+	twitchBackends = map[string]*twitch.Backend{}
+	twitchBackendsMu.Unlock()
 
 	sched.Stop(shutdownCtx)
 	return nil
