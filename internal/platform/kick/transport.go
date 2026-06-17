@@ -33,13 +33,85 @@ const (
 const chromeUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
 // httpDoer performs Kick API calls over a Chrome-fingerprinted utls/HTTP2
-// connection. One connection per request (the drops call rate is low). No CDP,
-// no headless browser — that's the whole point.
+// connection. Connections are pooled per host to avoid repeated TLS handshakes.
 type httpDoer struct {
 	timeout time.Duration
+	mu      sync.Mutex
+	conns   map[string]*cachedConn // host -> cached connection
 }
 
-func newHTTPDoer() *httpDoer { return &httpDoer{timeout: 20 * time.Second} }
+type cachedConn struct {
+	uconn   *utls.UClient
+	transport *http2.Transport
+	cc      *http2.ClientConn
+	lastUse time.Time
+}
+
+func newHTTPDoer() *httpDoer {
+	return &httpDoer{
+		timeout: 20 * time.Second,
+		conns:   map[string]*cachedConn{},
+	}
+}
+
+// connFor returns a cached connection for the host, or creates a new one.
+func (d *httpDoer) connFor(ctx context.Context, host string) (*cachedConn, error) {
+	d.mu.Lock()
+	if cc, ok := d.conns[host]; ok && time.Since(cc.lastUse) < 5*time.Minute {
+		cc.lastUse = time.Now()
+		d.mu.Unlock()
+		return cc, nil
+	}
+	d.mu.Unlock()
+
+	dialCtx, cancel := context.WithTimeout(ctx, d.timeout)
+	defer cancel()
+	var dialer net.Dialer
+	tcp, err := dialer.DialContext(dialCtx, "tcp", host+":443")
+	if err != nil {
+		return nil, fmt.Errorf("dial: %w", err)
+	}
+	uconn := utls.UClient(tcp, &utls.Config{ServerName: host, NextProtos: []string{"h2", "http/1.1"}}, utls.HelloChrome_Auto)
+	if err := uconn.HandshakeContext(dialCtx); err != nil {
+		uconn.Close()
+		return nil, fmt.Errorf("tls handshake: %w", err)
+	}
+	if uconn.ConnectionState().NegotiatedProtocol != "h2" {
+		uconn.Close()
+		return nil, fmt.Errorf("kick did not negotiate h2")
+	}
+
+	tr := &http2.Transport{}
+	cc, err := tr.NewClientConn(uconn)
+	if err != nil {
+		uconn.Close()
+		return nil, fmt.Errorf("h2 clientconn: %w", err)
+	}
+
+	cached := &cachedConn{
+		uconn:     uconn,
+		transport: tr,
+		cc:        cc,
+		lastUse:   time.Now(),
+	}
+
+	d.mu.Lock()
+	d.conns[host] = cached
+	d.mu.Unlock()
+
+	return cached, nil
+}
+
+// closeConn closes and removes a cached connection.
+func (d *httpDoer) closeConn(host string) {
+	d.mu.Lock()
+	if cc, ok := d.conns[host]; ok {
+		cc.uconn.Close()
+		cc.transport.Close()
+		delete(d.conns, host)
+	}
+	d.mu.Unlock()
+}
 
 // getRaw fetches a URL with the Chrome utls fingerprint but NO session
 // cookies — used to pull Kick CDN assets (reward images on files.kick.com),
@@ -52,26 +124,13 @@ func (d *httpDoer) getRaw(ctx context.Context, rawURL string) ([]byte, string, i
 	}
 	host := u.Host
 
-	dialCtx, cancel := context.WithTimeout(ctx, d.timeout)
-	defer cancel()
-	var dialer net.Dialer
-	tcp, err := dialer.DialContext(dialCtx, "tcp", host+":443")
+	cached, err := d.connFor(ctx, host)
 	if err != nil {
-		return nil, "", 0, fmt.Errorf("dial: %w", err)
-	}
-	uconn := utls.UClient(tcp, &utls.Config{ServerName: host, NextProtos: []string{"h2", "http/1.1"}}, utls.HelloChrome_Auto)
-	if err := uconn.HandshakeContext(dialCtx); err != nil {
-		uconn.Close()
-		return nil, "", 0, fmt.Errorf("tls handshake: %w", err)
-	}
-	if uconn.ConnectionState().NegotiatedProtocol != "h2" {
-		uconn.Close()
-		return nil, "", 0, fmt.Errorf("kick cdn did not negotiate h2")
+		return nil, "", 0, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		uconn.Close()
 		return nil, "", 0, err
 	}
 	req.Header.Set("User-Agent", chromeUA)
@@ -82,16 +141,9 @@ func (d *httpDoer) getRaw(ctx context.Context, rawURL string) ([]byte, string, i
 	req.Header.Set("Sec-Fetch-Mode", "no-cors")
 	req.Header.Set("Sec-Fetch-Dest", "image")
 
-	tr := &http2.Transport{}
-	defer tr.Close()
-	cc, err := tr.NewClientConn(uconn)
+	resp, err := cached.cc.RoundTrip(req)
 	if err != nil {
-		uconn.Close()
-		return nil, "", 0, fmt.Errorf("h2 clientconn: %w", err)
-	}
-	defer uconn.Close()
-	resp, err := cc.RoundTrip(req)
-	if err != nil {
+		d.closeConn(host)
 		return nil, "", 0, fmt.Errorf("roundtrip: %w", err)
 	}
 	defer resp.Body.Close()
@@ -120,21 +172,9 @@ func (d *httpDoer) do(ctx context.Context, sess platform.Session, method, rawURL
 	}
 	host := u.Host
 
-	dialCtx, cancel := context.WithTimeout(ctx, d.timeout)
-	defer cancel()
-	var dialer net.Dialer
-	tcp, err := dialer.DialContext(dialCtx, "tcp", host+":443")
+	cached, err := d.connFor(ctx, host)
 	if err != nil {
-		return nil, 0, fmt.Errorf("dial: %w", err)
-	}
-	uconn := utls.UClient(tcp, &utls.Config{ServerName: host, NextProtos: []string{"h2", "http/1.1"}}, utls.HelloChrome_Auto)
-	if err := uconn.HandshakeContext(dialCtx); err != nil {
-		uconn.Close()
-		return nil, 0, fmt.Errorf("tls handshake: %w", err)
-	}
-	if uconn.ConnectionState().NegotiatedProtocol != "h2" {
-		uconn.Close()
-		return nil, 0, fmt.Errorf("kick did not negotiate h2")
+		return nil, 0, err
 	}
 
 	var bodyRdr io.Reader
@@ -143,7 +183,6 @@ func (d *httpDoer) do(ctx context.Context, sess platform.Session, method, rawURL
 	}
 	req, err := http.NewRequestWithContext(ctx, method, rawURL, bodyRdr)
 	if err != nil {
-		uconn.Close()
 		return nil, 0, err
 	}
 	ua := ks.UserAgent
@@ -169,16 +208,9 @@ func (d *httpDoer) do(ctx context.Context, sess platform.Session, method, rawURL
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	tr := &http2.Transport{}
-	defer tr.Close()
-	cc, err := tr.NewClientConn(uconn)
+	resp, err := cached.cc.RoundTrip(req)
 	if err != nil {
-		uconn.Close()
-		return nil, 0, fmt.Errorf("h2 clientconn: %w", err)
-	}
-	defer uconn.Close()
-	resp, err := cc.RoundTrip(req)
-	if err != nil {
+		d.closeConn(host)
 		return nil, 0, fmt.Errorf("roundtrip: %w", err)
 	}
 	defer resp.Body.Close()
