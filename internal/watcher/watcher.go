@@ -548,10 +548,12 @@ func (w *Watcher) Run(ctx context.Context) error {
 			// still tears the watcher down promptly.
 			backoff = 0
 			w.setState(ctx, StatePickCampaign)
+			timer := time.NewTimer(recheckInterval)
 			select {
 			case <-ctx.Done():
+				timer.Stop()
 				return ctx.Err()
-			case <-time.After(recheckInterval):
+			case <-timer.C:
 			}
 			continue
 		} else {
