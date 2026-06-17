@@ -12,64 +12,64 @@ import (
 
 // Pickle opcodes (subset needed for SimpleCookie parsing)
 const (
-	opMARK        = '('
-	opSTOP        = '.'
-	opPOP         = '0'
-	opPOP_MARK    = '1'
-	opDUP         = '2'
-	opFLOAT       = 'F'
-	opINT         = 'I'
-	opBININT      = 'J'
-	opBININT1     = 'K'
-	opBININT2     = 'M'
-	opLONG        = 'L'
-	opLONG1       = 0x8a
-	opLONG4       = 0x8b
-	opSTRING      = 'S'
-	opSTRING1     = 'U' // SHORT_BINSTRING
-	opSTRING4     = 0x8d
-	opUNICODE     = 'V'
-	opUNICODE1    = 'X' // SHORT_BINUNICODE
-	opUNICODE4    = 0x8e
-	opBINUNICODE  = 0x8c // BINUNICODE (protocol 4)
-	opEMPTY_TUPLE = ')'
-	opTUPLE1      = 0x85
-	opTUPLE2      = 0x86
-	opTUPLE3      = 0x87
-	opEMPTY_LIST  = ']'
-	opAPPEND      = 'a'
-	opAPPENDS     = 'e'
-	opEMPTY_DICT  = '}'
-	opSETITEM     = 's'
-	opSETITEMS    = 'u'
-	opGLOBAL      = 'c'
-	opINST        = 'i'
-	opREDUCE      = 'R'
-	opBUILD      = 'b'
-	opNEWOBJ      = 0x81
-	opOBJ         = 'o'
-	opPUT         = 'p'
-	opGET         = 'g'
-	opBINGET      = 'h'
-	opLONG_BINGET = 'j'
-	opBINPUT      = 'q'
-	opLONG_BINPUT = 'r'
-	opPROTO       = 0x80
-	opNEWFALSE    = 0x88
-	opNEWTRUE     = 0x89
-	opNEWOBJ_EX   = 0x92
+	opMARK         = '('
+	opSTOP         = '.'
+	opPOP          = '0'
+	opPOP_MARK     = '1'
+	opDUP          = '2'
+	opFLOAT        = 'F'
+	opINT          = 'I'
+	opBININT       = 'J'
+	opBININT1      = 'K'
+	opBININT2      = 'M'
+	opLONG         = 'L'
+	opLONG1        = 0x8a
+	opLONG4        = 0x8b
+	opSTRING       = 'S'
+	opSTRING1      = 'U' // SHORT_BINSTRING
+	opSTRING4      = 0x8d
+	opUNICODE      = 'V'
+	opUNICODE1     = 'X' // SHORT_BINUNICODE
+	opUNICODE4     = 0x8e
+	opBINUNICODE   = 0x8c // BINUNICODE (protocol 4)
+	opEMPTY_TUPLE  = ')'
+	opTUPLE1       = 0x85
+	opTUPLE2       = 0x86
+	opTUPLE3       = 0x87
+	opEMPTY_LIST   = ']'
+	opAPPEND       = 'a'
+	opAPPENDS      = 'e'
+	opEMPTY_DICT   = '}'
+	opSETITEM      = 's'
+	opSETITEMS     = 'u'
+	opGLOBAL       = 'c'
+	opINST         = 'i'
+	opREDUCE       = 'R'
+	opBUILD        = 'b'
+	opNEWOBJ       = 0x81
+	opOBJ          = 'o'
+	opPUT          = 'p'
+	opGET          = 'g'
+	opBINGET       = 'h'
+	opLONG_BINGET  = 'j'
+	opBINPUT       = 'q'
+	opLONG_BINPUT  = 'r'
+	opPROTO        = 0x80
+	opNEWFALSE     = 0x88
+	opNEWTRUE      = 0x89
+	opNEWOBJ_EX    = 0x92
 	opSTACK_GLOBAL = 0x93
-	opMEMOIZE     = 0x94
-	opFRAME       = 0x95
+	opMEMOIZE      = 0x94
+	opFRAME        = 0x95
 )
 
 // pickleReader reads pickle protocol data
 type pickleReader struct {
-	data   []byte
-	pos    int
-	stack  []interface{}
-	marks  []int
-	memo   map[int]interface{}
+	data  []byte
+	pos   int
+	stack []interface{}
+	marks []int
+	memo  map[int]interface{}
 }
 
 func newPickleReader(data []byte) *pickleReader {

@@ -15,7 +15,7 @@ import (
 // table + ring-buffered reward-reaper claims + ring events so the
 // page surfaces both persistent + ephemeral history in one feed.
 type historyDeps struct {
-	loc   *time.Location // timezone for displayed times
+	loc  *time.Location // timezone for displayed times
 	q    *gen.Queries
 	ring *mlog.Ring
 	t    Renderer

@@ -20,7 +20,7 @@ import (
 )
 
 type dropsDeps struct {
-	loc   *time.Location // timezone for displayed times
+	loc      *time.Location // timezone for displayed times
 	q        *gen.Queries
 	t        Renderer
 	reload   func(context.Context) error

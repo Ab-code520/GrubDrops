@@ -35,7 +35,7 @@ type kickBrowserClient = KickBrowserClient
 type kickChannelRegistrar = KickChannelRegistrar
 
 type loginKickDeps struct {
-	loc   *time.Location // timezone for displayed times
+	loc       *time.Location // timezone for displayed times
 	q         *gen.Queries
 	t         Renderer
 	sm        *scs.SessionManager

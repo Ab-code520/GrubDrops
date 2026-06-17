@@ -20,7 +20,7 @@ import (
 )
 
 type accountsDeps struct {
-	loc   *time.Location // timezone for displayed times
+	loc           *time.Location // timezone for displayed times
 	q             *gen.Queries
 	db            *sql.DB
 	t             Renderer
