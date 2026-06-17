@@ -587,10 +587,12 @@
   "oidc.account_not_allowed": "账号不允许",
 
   "time.days": "天",
+  "time.days_short": "天",
   "time.hours": "时",
   "time.minutes": "分",
   "time.seconds": "秒",
   "time.ago": "前",
+  "time.ended": "已结束",
 
   "state.watching": "观看中",
   "state.claiming": "领取中",

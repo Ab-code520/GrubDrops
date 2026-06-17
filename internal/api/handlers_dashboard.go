@@ -550,12 +550,12 @@ func formatEndsIn(d time.Duration, lang string) string {
 	}
 	if d >= 24*time.Hour {
 		days := int(d / (24 * time.Hour))
-		return fmt.Sprintf("%dd", days)
+		return fmt.Sprintf("%d%s", days, i18n.T(lang, "time.days_short"))
 	}
 	if d >= time.Hour {
-		return fmt.Sprintf("%dh", int(d/time.Hour))
+		return fmt.Sprintf("%d%s", int(d/time.Hour), i18n.T(lang, "time.hours"))
 	}
-	return fmt.Sprintf("%dm", int(d/time.Minute))
+	return fmt.Sprintf("%d%s", int(d/time.Minute), i18n.T(lang, "time.minutes"))
 }
 
 // eventAccountsFrom projects the account list down to {ID, Label}
