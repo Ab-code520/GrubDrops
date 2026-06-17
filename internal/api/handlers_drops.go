@@ -465,7 +465,7 @@ func (d *dropsDeps) collectAll(
 	for _, c := range pastCamps {
 		row := dropsRow{
 			CampaignID:   c.ID,
-			When:         time.Unix(c.EndsAt, 0).In(d.loc).Format("2006-01-02 15:04"),
+			When:         time.Unix(c.EndsAt, 0).In(d.loc).Format("2006-01-02 15:04 MST"),
 			Platform:     c.Platform,
 			Game:         c.Game,
 			CampaignName: c.Name,
@@ -495,7 +495,7 @@ func (d *dropsDeps) collectAll(
 	for _, c := range currentCamps {
 		row := dropsRow{
 			CampaignID:   c.ID,
-			When:         time.Unix(c.EndsAt, 0).In(d.loc).Format("2006-01-02 15:04"),
+			When:         time.Unix(c.EndsAt, 0).In(d.loc).Format("2006-01-02 15:04 MST"),
 			Platform:     c.Platform,
 			Game:         c.Game,
 			CampaignName: c.Name,
@@ -523,7 +523,7 @@ func (d *dropsDeps) collectAll(
 	for _, c := range upcomingCamps {
 		row := dropsRow{
 			CampaignID:   c.ID,
-			When:         time.Unix(c.StartsAt, 0).In(d.loc).Format("2006-01-02 15:04"),
+			When:         time.Unix(c.StartsAt, 0).In(d.loc).Format("2006-01-02 15:04 MST"),
 			Platform:     c.Platform,
 			Game:         c.Game,
 			CampaignName: c.Name,
@@ -568,7 +568,7 @@ func (d *dropsDeps) collectAll(
 		}
 		past = append(past, dropsRow{
 			CampaignID:   row.CampaignID,
-			When:         time.Unix(row.ClaimedAt, 0).In(d.loc).Format("2006-01-02 15:04"),
+			When:         time.Unix(row.ClaimedAt, 0).In(d.loc).Format("2006-01-02 15:04 MST"),
 			Platform:     row.Platform,
 			Game:         row.Game,
 			CampaignName: row.CampaignName,
@@ -972,7 +972,7 @@ func (d *dropsDeps) items(w http.ResponseWriter, r *http.Request) {
 		Status:       camp.Status,
 	}
 	if camp.EndsAt > 0 {
-		detail.When = time.Unix(camp.EndsAt, 0).In(d.loc).Format("2006-01-02 15:04 UTC")
+		detail.When = time.Unix(camp.EndsAt, 0).In(d.loc).Format("2006-01-02 15:04 MST")
 	}
 	// Per-benefit COLLECTED marks: which accounts already claimed each benefit.
 	collectedByBenefit := map[string][]collectedMark{}

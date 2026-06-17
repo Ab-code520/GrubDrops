@@ -1,6 +1,6 @@
 services:
   miner:
-    image: ghcr.io/ab-code520/grubdrops:latest
+    image: ghcr.io/aalejandrofer/grubdrops:latest
     build:
       context: ..
       dockerfile: deploy/Dockerfile.miner
@@ -40,7 +40,7 @@ services:
       - ./data:/data
 
   browser:
-    image: ghcr.io/ab-code520/grubdrops-browser:latest
+    image: ghcr.io/aalejandrofer/grubdrops-browser:latest
     build:
       context: ..
       dockerfile: deploy/Dockerfile.browser
