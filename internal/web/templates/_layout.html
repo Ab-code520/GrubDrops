@@ -44,21 +44,6 @@
     }
     tick(); setInterval(tick, 1000);
   })();
-  // Convert any element with data-ts attribute from ISO 8601 to local time.
-  function convertTimestamps(root) {
-    (root || document).querySelectorAll('[data-ts]').forEach(function(el) {
-      var ts = el.getAttribute('data-ts');
-      if (ts) {
-        var d = new Date(ts);
-        if (!isNaN(d)) el.textContent = d.toLocaleString();
-      }
-    });
-  }
-  convertTimestamps(document);
-  // Re-convert after HTMX swaps.
-  document.body.addEventListener('htmx:afterSwap', function(e) {
-    convertTimestamps(e.target || document);
-  });
 </script>
 <script>
   // Theme toggle: flip data-theme on <html>, persist to localStorage, update the

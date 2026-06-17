@@ -77,7 +77,6 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("master key invalid: %w", err)
 	}
-	_ = cryptor
 
 	q := gen.New(db)
 	settingsStore := store.NewSettings(q)
