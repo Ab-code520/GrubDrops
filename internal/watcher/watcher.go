@@ -522,9 +522,11 @@ func (w *Watcher) setState(ctx context.Context, s State) {
 		"account", w.cfg.AccountID,
 		"state", s.String(),
 		"prev", prev.String())
-	_ = w.cfg.Notifier.Notify(ctx, "state", map[string]any{
-		"account": w.cfg.AccountID, "state": s.String(),
-	})
+	if w.cfg.Notifier != nil {
+		_ = w.cfg.Notifier.Notify(ctx, "state", map[string]any{
+			"account": w.cfg.AccountID, "state": s.String(),
+		})
+	}
 }
 
 func (w *Watcher) Run(ctx context.Context) error {
@@ -1450,7 +1452,7 @@ func (w *Watcher) tickWatch(ctx context.Context) error {
 // maybeNotifyProgress emits a "progress" Discord notification when curMin
 // crosses a new milestone (see shouldNotifyProgress).
 func (w *Watcher) maybeNotifyProgress(ctx context.Context, curMin, reqMin int) {
-	if w.shouldNotifyProgress(curMin, reqMin) {
+	if w.cfg.Notifier != nil && w.shouldNotifyProgress(curMin, reqMin) {
 		_ = w.cfg.Notifier.Notify(ctx, "progress", w.notifyFields(map[string]any{
 			"cur_min": curMin,
 			"req_min": reqMin,
@@ -1567,7 +1569,9 @@ func (w *Watcher) notifySwept(ctx context.Context, cr platform.ClaimedReward) {
 	if cr.Game != "" {
 		extra["game"] = cr.Game
 	}
-	_ = w.cfg.Notifier.Notify(ctx, "claim", w.notifyFields(extra))
+	if w.cfg.Notifier != nil {
+		_ = w.cfg.Notifier.Notify(ctx, "claim", w.notifyFields(extra))
+	}
 }
 
 func (w *Watcher) claim(ctx context.Context) error {
@@ -1621,13 +1625,15 @@ func (w *Watcher) claim(ctx context.Context) error {
 		"benefit_name", benefit.Name,
 		"channel", handle.Channel)
 
-	_ = w.cfg.Notifier.Notify(ctx, "claim", w.notifyFields(map[string]any{
-		// benefit/handle are captured locals; currentStream may already be
-		// cleared by claim time, so pass channel explicitly. A claim implies
-		// the watch requirement was met, so report the bar as full.
-		"drop": benefit.Name, "channel": handle.Channel,
-		"cur_min": benefit.RequiredMinutes, "req_min": benefit.RequiredMinutes,
-	}))
+	if w.cfg.Notifier != nil {
+		_ = w.cfg.Notifier.Notify(ctx, "claim", w.notifyFields(map[string]any{
+			// benefit/handle are captured locals; currentStream may already be
+			// cleared by claim time, so pass channel explicitly. A claim implies
+			// the watch requirement was met, so report the bar as full.
+			"drop": benefit.Name, "channel": handle.Channel,
+			"cur_min": benefit.RequiredMinutes, "req_min": benefit.RequiredMinutes,
+		}))
+	}
 
 	w.mu.Lock()
 	w.currentBenefit = nil

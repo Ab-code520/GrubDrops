@@ -139,7 +139,9 @@ func (d *loginTwitchCookieDeps) post(w http.ResponseWriter, r *http.Request) {
 
 	// Backfill avatar
 	sess.AccountID = id
-	fetchAndStoreAvatar(d.rootCtx, d.q, backend, id, sess)
+	if backend != nil {
+		fetchAndStoreAvatar(d.rootCtx, d.q, backend, id, sess)
+	}
 
 	// Invalidate auth cache
 	type authInvalidator interface{ InvalidateAuth(string) }

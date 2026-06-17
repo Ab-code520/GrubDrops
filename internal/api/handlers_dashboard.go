@@ -257,7 +257,10 @@ type dashAlert struct {
 func (d dashboardDeps) collectPage(r *http.Request) dashPage {
 	lang := i18n.DetectLang(r)
 	accs, _ := d.q.ListAllAccounts(r.Context())
-	snapshots := d.sch.WatcherSnapshots()
+	var snapshots []watcher.Snapshot
+	if d.sch != nil {
+		snapshots = d.sch.WatcherSnapshots()
+	}
 	snapByID := map[string]watcher.Snapshot{}
 	for _, s := range snapshots {
 		snapByID[s.AccountID] = s
@@ -358,7 +361,9 @@ func (d dashboardDeps) collectPage(r *http.Request) dashPage {
 	// drop only *some* accounts collected is not completed. Computed from
 	// the discovery snapshot (benefit + eligible-account sets) joined with
 	// the persistent link + claim tables.
-	page.Tele.Completed, page.Tele.TotalDrops = completedByAllConnected(r.Context(), d.sch.DiscoverySnapshot(), d.q)
+	if d.sch != nil {
+		page.Tele.Completed, page.Tele.TotalDrops = completedByAllConnected(r.Context(), d.sch.DiscoverySnapshot(), d.q)
+	}
 	return page
 }
 
@@ -939,6 +944,10 @@ func (d dashboardDeps) campaignDetail(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing campaign id", http.StatusBadRequest)
 		return
 	}
+	if d.sch == nil {
+		http.Error(w, "scheduler not available", http.StatusServiceUnavailable)
+		return
+	}
 	dc, ok := d.sch.FindDiscoveredCampaign(id)
 	if !ok {
 		http.Error(w, "campaign not in discovery cache", http.StatusNotFound)
@@ -1080,10 +1089,12 @@ func (d dashboardDeps) accountDetail(w http.ResponseWriter, r *http.Request) {
 
 	// Pull watcher snapshot if present.
 	var snap watcher.Snapshot
-	for _, s := range d.sch.WatcherSnapshots() {
-		if s.AccountID == id {
-			snap = s
-			break
+	if d.sch != nil {
+		for _, s := range d.sch.WatcherSnapshots() {
+			if s.AccountID == id {
+				snap = s
+				break
+			}
 		}
 	}
 	if snap.State == "" {
@@ -1122,6 +1133,13 @@ func (d dashboardDeps) accountDetail(w http.ResponseWriter, r *http.Request) {
 
 	// Per-account campaign eligibility from discovery cache.
 	now := time.Now()
+	if d.sch == nil {
+		render(w, r, d.t, "dashboard_account_modal.html", templateData{
+			AuthedAdmin: true, CSRFToken: csrfToken(r), Active: "dashboard",
+			Page: detail,
+		})
+		return
+	}
 	for _, dc := range d.sch.DiscoverySnapshot() {
 		// Match by source/eligible account ID.
 		var matches bool
