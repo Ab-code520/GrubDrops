@@ -181,7 +181,8 @@ func NewRouter(d Deps) http.Handler {
 	csrf := CSRF(d.SecureCookies)
 
 	// Language switch: POST /api/lang sets a "lang" cookie (1 year).
-	r.Method(http.MethodPost, "/api/lang", withSession(csrf(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// No CSRF needed — it only sets a non-sensitive preference cookie.
+	r.Method(http.MethodPost, "/api/lang", withSession(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lang := strings.TrimSpace(r.FormValue("lang"))
 		if lang == "" {
 			lang = "en"
@@ -204,7 +205,7 @@ func NewRouter(d Deps) http.Handler {
 			ref = "/"
 		}
 		http.Redirect(w, r, ref, http.StatusSeeOther)
-	}))))
+	})))
 
 	// Public (no auth required, but still session + CSRF)
 	r.Method(http.MethodGet, "/setup", withSession(csrf(http.HandlerFunc(setup.get))))
