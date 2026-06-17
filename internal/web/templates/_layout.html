@@ -85,6 +85,8 @@
       f.method = 'POST'; f.action = '/api/lang'; f.style.display = 'none';
       var i = document.createElement('input');
       i.name = 'lang'; i.value = lang; f.appendChild(i);
+      var csrf = document.createElement('input');
+      csrf.name = 'csrf_token'; csrf.value = '{{.CSRFToken}}'; f.appendChild(csrf);
       document.body.appendChild(f); f.submit();
     });
     document.addEventListener('click', function () {
