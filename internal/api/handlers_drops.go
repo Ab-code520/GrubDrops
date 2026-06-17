@@ -972,7 +972,7 @@ func (d *dropsDeps) items(w http.ResponseWriter, r *http.Request) {
 		Status:       camp.Status,
 	}
 	if camp.EndsAt > 0 {
-		detail.When = time.Unix(camp.EndsAt, 0).In(d.loc).Format("2006-01-02 15:04 UTC")
+		detail.When = time.Unix(camp.EndsAt, 0).In(d.loc).Format("2006-01-02 15:04 MST")
 	}
 	// Per-benefit COLLECTED marks: which accounts already claimed each benefit.
 	collectedByBenefit := map[string][]collectedMark{}
