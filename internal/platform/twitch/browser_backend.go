@@ -48,6 +48,13 @@ type BrowserBackend struct {
 	pubsubs        map[string]*PubSubClient // account_id → client
 	pubsubHandlers PubSubHandlers
 	pubsubHooks    map[string]platform.PubSubHooks // account_id → per-account hooks
+	proxyURL        string // proxy URL for PubSub WebSocket connections
+}
+
+
+// SetProxyURL stores the proxy URL for PubSub WebSocket connections.
+func (b *BrowserBackend) SetProxyURL(url string) {
+	b.proxyURL = url
 }
 
 // TwitchSidecarAuthenticator is the surface BrowserBackend needs to
@@ -363,7 +370,7 @@ func (b *BrowserBackend) ensurePubSub(s platform.Session, a *twitchAccount) {
 		b.pubsubMu.Unlock()
 		return
 	}
-	client := NewPubSubClient(s.AccessToken, handlers)
+	client := NewPubSubClient(s.AccessToken, handlers, b.proxyURL)
 	b.pubsubs[s.AccountID] = client
 	b.pubsubMu.Unlock()
 	go func() {
@@ -494,3 +501,4 @@ func (b *BrowserBackend) AllowedChannelCount(campaignID string) int {
 	defer b.mu.Unlock()
 	return len(b.allowedLoginsByCampaign[campaignID])
 }
+

@@ -104,6 +104,7 @@ type Backend struct {
 	pubsubHandlers PubSubHandlers
 	pubsubDisabled bool   // tests disable via newForTest
 	boundAccount   string // first account to bind hooks; guards single-account use
+	proxyURL             string // proxy URL for WebSocket connections
 }
 
 var _ platform.Backend = (*Backend)(nil)
@@ -124,6 +125,14 @@ func (b *Backend) Close() {
 
 // Backend must satisfy ChannelSubscriber so the watcher subscribes
 // video-playback PubSub topics for event-driven stream-up/down, and
+
+// SetProxyURL stores the proxy URL for PubSub WebSocket connections.
+// Must be called before the first ListActiveCampaigns call that triggers
+// ensurePubSub. The proxy URL is passed to gorilla/websocket's Dialer
+// so WebSocket connections also go through the proxy.
+func (b *Backend) SetProxyURL(url string) {
+	b.proxyURL = url
+}
 // PubSubAware so the watcher's real-time hooks actually receive events
 // (both signatures drifted once and broke this silently).
 var _ platform.ChannelSubscriber = (*Backend)(nil)
@@ -285,7 +294,7 @@ func (b *Backend) ensurePubSub(s platform.Session) {
 		return
 	}
 	handlers := b.pubsubHandlers
-	client := NewPubSubClient(s.AccessToken, handlers)
+	client := NewPubSubClient(s.AccessToken, handlers, b.proxyURL)
 	ctx, cancel := context.WithCancel(context.Background())
 	b.pubsub = client
 	b.pubsubCancel = cancel

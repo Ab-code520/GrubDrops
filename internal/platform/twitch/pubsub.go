@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"sync"
@@ -67,6 +68,7 @@ type PubSubHandlers struct {
 type PubSubClient struct {
 	authToken string
 	handlers  PubSubHandlers
+	proxyURL  string // proxy URL for WebSocket connections
 
 	mu      sync.Mutex
 	topics  map[string]struct{}
@@ -77,10 +79,11 @@ type PubSubClient struct {
 }
 
 // NewPubSubClient builds a client. Call Connect to dial.
-func NewPubSubClient(authToken string, handlers PubSubHandlers) *PubSubClient {
+func NewPubSubClient(authToken string, handlers PubSubHandlers, proxyURL string) *PubSubClient {
 	return &PubSubClient{
 		authToken: authToken,
 		handlers:  handlers,
+		proxyURL:  proxyURL,
 		topics:    map[string]struct{}{},
 	}
 }
@@ -182,7 +185,15 @@ func (p *PubSubClient) RemoveTopic(topic string) {
 }
 
 func (p *PubSubClient) dialAndPump(ctx context.Context) error {
-	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second, Proxy: http.ProxyFromEnvironment}
+	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
+	if p.proxyURL != "" {
+		parsed, err := url.Parse(p.proxyURL)
+		if err == nil {
+			dialer.Proxy = http.ProxyURL(parsed)
+		}
+	} else {
+		dialer.Proxy = http.ProxyFromEnvironment
+	}
 	conn, _, err := dialer.DialContext(ctx, PubSubEndpoint, http.Header{})
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)

@@ -209,8 +209,17 @@ func run() error {
 	} else {
 		twitchBackend = twitch.New()
 	}
+	if proxyEnabled && proxyURL != "" {
+		twitchBackend.SetProxyURL(proxyURL)
+	}
 	if twitchBrowserEnabled && browserClient != nil {
-		registry.Register(twitch.NewBrowserBackend(browserClient))
+		if proxyEnabled && proxyURL != "" {
+			bb := twitch.NewBrowserBackend(browserClient)
+			bb.SetProxyURL(proxyURL)
+			registry.Register(bb)
+		} else {
+			registry.Register(twitch.NewBrowserBackend(browserClient))
+		}
 		logger.Info("twitch backend: BROWSER (via sidecar)")
 	} else {
 		registry.Register(twitchBackend)
@@ -311,6 +320,9 @@ func run() error {
 				return bk, true
 			}
 			bk := twitch.New()
+			if proxyEnabled && proxyURL != "" {
+				bk.SetProxyURL(proxyURL)
+			}
 			twitchBackends[a.ID] = bk
 			return bk, true
 		}
@@ -893,3 +905,6 @@ func settingOr[T any](logger *slog.Logger, v T, err error, fallback T, key strin
 	}
 	return v
 }
+
+
+
