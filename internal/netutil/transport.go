@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -22,6 +23,7 @@ func ProxyDialer(proxyURL string) func(ctx context.Context, network, addr string
 	}
 	parsed, err := url.Parse(proxyURL)
 	if err != nil {
+		slog.Warn("proxy: invalid proxy URL, falling back to direct connection", "url", proxyURL, "err", err)
 		return nil
 	}
 	switch parsed.Scheme {
@@ -106,6 +108,7 @@ func NewTransport(proxyURL string) *http.Transport {
 
 	parsed, err := url.Parse(proxyURL)
 	if err != nil {
+		slog.Warn("proxy: invalid proxy URL, using direct transport", "url", proxyURL, "err", err)
 		return transport
 	}
 

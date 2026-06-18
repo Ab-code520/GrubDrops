@@ -188,11 +188,11 @@ func (p *PubSubClient) dialAndPump(ctx context.Context) error {
 	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	if p.proxyURL != "" {
 		parsed, err := url.Parse(p.proxyURL)
-		if err == nil {
+		if err != nil {
+			slog.Warn("pubsub: invalid proxy URL, connecting directly", "url", p.proxyURL, "err", err)
+		} else {
 			dialer.Proxy = http.ProxyURL(parsed)
 		}
-	} else {
-		dialer.Proxy = http.ProxyFromEnvironment
 	}
 	conn, _, err := dialer.DialContext(ctx, PubSubEndpoint, http.Header{})
 	if err != nil {

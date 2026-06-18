@@ -175,7 +175,11 @@ func run() error {
 		kickOpts = append(kickOpts, kick.WithSidecarAutoCreate(cfg.KickSidecarImage, cfg.KickSidecarNetwork))
 		logger.Info("kick sidecar auto-create enabled", "image", cfg.KickSidecarImage, "network", cfg.KickSidecarNetwork)
 	}
-	kickBackend = kick.New(browserClient, dockerCtl, cfg.KickSidecarTemplate, cfg.KickSidecarPort, 10*time.Minute, proxyURL, kickOpts...)
+	kickProxyURL := ""
+	if proxyEnabled && proxyURL != "" {
+		kickProxyURL = proxyURL
+	}
+	kickBackend = kick.New(browserClient, dockerCtl, cfg.KickSidecarTemplate, cfg.KickSidecarPort, 10*time.Minute, kickProxyURL, kickOpts...)
 	// Watch path is operator-selectable (Settings → Experimental). "browser"
 	// (default) drives a real IVS <video> in the sidecar. "ws" is the
 	// experimental pure-WebSocket path (no browser): leaving browser-watch OFF
@@ -319,7 +323,12 @@ func run() error {
 			if bk, ok := twitchBackends[a.ID]; ok {
 				return bk, true
 			}
-			bk := twitch.New()
+			var bk *twitch.Backend
+			if proxyTransport != nil {
+				bk = twitch.NewWithTransport(proxyTransport)
+			} else {
+				bk = twitch.New()
+			}
 			if proxyEnabled && proxyURL != "" {
 				bk.SetProxyURL(proxyURL)
 			}
