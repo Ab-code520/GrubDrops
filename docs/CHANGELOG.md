@@ -4,6 +4,44 @@ All notable changes to GrubDrops.
 
 ## [Unreleased]
 
+## [1.2.7] — 2026-06-18
+
+### Fixed
+
+- **Code review improvements** — reviewed and verified all v1.2.6 fixes, confirmed
+  CSRF protection, i18n, connection pooling, and watcher state machine are working
+  correctly. No new issues found.
+
+## [1.2.6] — 2026-06-17
+
+### Fixed
+
+- **3 CRITICAL issues** — context and error handling, nil pointer dereferences
+- **PubSub goroutine leak (Q4/Q5)** — goroutines were not properly cancelled on
+  disconnect, causing memory growth over time
+- **Twitch backend lifecycle management (Q6/Q7)** — backend resources were not
+  cleanly released on shutdown
+- **WebSocket write race condition (Q11)** — concurrent writes to the same
+  WebSocket connection without proper locking
+- **Kick transport connection pool (Q13)** — stale connections were not evicted
+  from the pool, causing request failures
+- **Watcher timer leak (Q17)** — timers were not stopped on state transitions,
+  leaking goroutines
+- **i18n hardcoded strings** — multiple templates and handlers had untranslated
+  strings (settings, login, error messages, time formats)
+- **i18n CSRF error messages** — CSRF failure messages now properly translated
+- **CSRF token for language switcher** — the /api/lang form now includes a CSRF
+  token for consistency (endpoint itself is CSRF-exempt as it only sets a
+  preference cookie)
+- **gofmt struct field alignment** — pubsub.go and transport.go had misaligned
+  struct fields
+
+### Changed
+
+- **Docker registry** — images now publish to `ghcr.io/ab-code520/grubdrops`
+  (fork registry) instead of the upstream registry
+- **README URLs** — all fork references updated to project URLs
+
 ## [1.2.5] — 2026-06-17
 
 ### Added
