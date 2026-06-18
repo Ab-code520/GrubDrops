@@ -45,7 +45,7 @@ func TestLiveDiscovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	chans, err := newAPI().DiscoverChannelsForCategory(ctx, sess, "rust")
+	chans, err := newAPI("").DiscoverChannelsForCategory(ctx, sess, "rust")
 	if err != nil {
 		t.Fatalf("discover channels: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestLiveCampaigns(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	camps, err := newAPI().Campaigns(ctx, s)
+	camps, err := newAPI("").Campaigns(ctx, s)
 	if err != nil {
 		t.Fatalf("Campaigns: %v", err)
 	}
