@@ -135,7 +135,7 @@ func dialWSAt(wsURL string) wsProbeDialFn {
 // The returned Backend is suitable only for ProbeWS tests — all other methods
 // still target real Kick endpoints.
 func NewKickBackendForTest(tokenServerURL, wsServerURL string) *Backend {
-	b := New(nil, nil, "x", 0, time.Minute)
+	b := New(nil, nil, "x", 0, time.Minute, "")
 	b.probeDeps = probeWSDeps{
 		fetchToken: fetchViewerTokenHTTP(tokenServerURL),
 		dialWS:     dialWSAt(wsServerURL),
@@ -175,7 +175,7 @@ func (b *Backend) ProbeWS(ctx context.Context, sess platform.Session, channel st
 	if b.probeDeps.fetchToken != nil {
 		token, err = b.probeDeps.fetchToken(ctx, ks)
 	} else {
-		token, err = fetchViewerToken(ctx, ks)
+		token, err = fetchViewerToken(ctx, ks, "")
 	}
 	if err != nil {
 		return fmt.Errorf("probe ws: %w", err)
@@ -186,7 +186,7 @@ func (b *Backend) ProbeWS(ctx context.Context, sess platform.Session, channel st
 	if b.probeDeps.dialWS != nil {
 		rawConn, err = b.probeDeps.dialWS(ctx, ks, token)
 	} else {
-		rawConn, err = dialViewerWS(ctx, ks, token)
+		rawConn, err = dialViewerWS(ctx, ks, token, "")
 	}
 	if err != nil {
 		return fmt.Errorf("probe ws: %w", err)
@@ -243,3 +243,5 @@ func (b *Backend) ProbeWS(ctx context.Context, sess platform.Session, channel st
 	}
 	return nil
 }
+
+

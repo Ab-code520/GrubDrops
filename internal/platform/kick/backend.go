@@ -58,6 +58,9 @@ type Backend struct {
 	// reaperCancel stops the sidecar reaper goroutine on Close().
 	reaperCancel context.CancelFunc
 
+	// proxyURL is the proxy URL for all Kick HTTP/WebSocket connections.
+	proxyURL string
+
 	// probeDeps holds injectable dial/token helpers for ProbeWS. Zero value
 	// means "use the real Kick endpoints". Set by NewKickBackendForTest.
 	probeDeps probeWSDeps
@@ -87,7 +90,7 @@ func WithSidecarAutoCreate(image, network string) Option {
 // always-on). template/port derive each account's container name + gRPC port;
 // idleGrace is how long an account may go without watch activity before its
 // sidecar is reaped.
-func New(c *browser.Client, ctl dockerctl.Controller, template string, port int, idleGrace time.Duration, opts ...Option) *Backend {
+func New(c *browser.Client, ctl dockerctl.Controller, template string, port int, idleGrace time.Duration, proxyURL string, opts ...Option) *Backend {
 	var o options
 	for _, fn := range opts {
 		fn(&o)
@@ -98,7 +101,8 @@ func New(c *browser.Client, ctl dockerctl.Controller, template string, port int,
 	}
 	b := &Backend{
 		c:                c,
-		api:              newAPI(),
+		api:              newAPI(proxyURL),
+		proxyURL:         proxyURL,
 		sidecars:         reg,
 		clientByName:     map[string]*browser.Client{},
 		sidecarPort:      port,
@@ -772,3 +776,4 @@ func (b *Backend) FetchAvatar(ctx context.Context, s platform.Session) (string, 
 }
 
 var _ platform.AvatarFetcher = (*Backend)(nil)
+

@@ -175,7 +175,7 @@ func run() error {
 		kickOpts = append(kickOpts, kick.WithSidecarAutoCreate(cfg.KickSidecarImage, cfg.KickSidecarNetwork))
 		logger.Info("kick sidecar auto-create enabled", "image", cfg.KickSidecarImage, "network", cfg.KickSidecarNetwork)
 	}
-	kickBackend = kick.New(browserClient, dockerCtl, cfg.KickSidecarTemplate, cfg.KickSidecarPort, 10*time.Minute, kickOpts...)
+	kickBackend = kick.New(browserClient, dockerCtl, cfg.KickSidecarTemplate, cfg.KickSidecarPort, 10*time.Minute, proxyURL, kickOpts...)
 	// Watch path is operator-selectable (Settings → Experimental). "browser"
 	// (default) drives a real IVS <video> in the sidecar. "ws" is the
 	// experimental pure-WebSocket path (no browser): leaving browser-watch OFF
@@ -905,6 +905,7 @@ func settingOr[T any](logger *slog.Logger, v T, err error, fallback T, key strin
 	}
 	return v
 }
+
 
 
 

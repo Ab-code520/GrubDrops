@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 	utls "github.com/refraction-networking/utls"
 
+	"github.com/aalejandrofer/grubdrops/internal/netutil"
 	"github.com/aalejandrofer/grubdrops/internal/platform"
 )
 
@@ -67,66 +68,92 @@ func wsUserEvent(channelID, livestreamID int64) map[string]any {
 
 // ---- utls transport (Chrome-120 fingerprint, HTTP/1.1 ALPN for the WS upgrade) ----
 
-// newUTLSConn dials TCP then wraps it with a Chrome-120 utls fingerprint,
-// forcing http/1.1 ALPN (the WebSocket upgrade is http/1.1, and the token host
-// is happy on 1.1). Mirrors the verified kickautodrops client.
-func newUTLSConn(ctx context.Context, network, addr string) (net.Conn, error) {
-	d := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
-	raw, err := d.DialContext(ctx, network, addr)
-	if err != nil {
-		return nil, err
-	}
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		raw.Close()
-		return nil, fmt.Errorf("split host: %w", err)
-	}
-	spec, err := utls.UTLSIdToSpec(utls.HelloChrome_120)
-	if err != nil {
-		raw.Close()
-		return nil, fmt.Errorf("chrome spec: %w", err)
-	}
-	// Strip h2 from ALPN + drop the ApplicationSettings (h2-only) extension so
-	// the server picks http/1.1 — Go's stack won't auto-upgrade a custom-dialed
-	// conn to h2, which would otherwise produce malformed responses.
-	var cleaned []utls.TLSExtension
-	for _, ext := range spec.Extensions {
-		switch ext.(type) {
-		case *utls.ALPNExtension:
-			cleaned = append(cleaned, &utls.ALPNExtension{AlpnProtocols: []string{"http/1.1"}})
-		case *utls.ApplicationSettingsExtension:
-			// h2-only; skip
-		default:
-			cleaned = append(cleaned, ext)
+// newUTLSConn returns a DialTLSContext function that dials TCP through an
+// optional proxy, then wraps the connection with a Chrome-120 utls fingerprint.
+// If proxyURL is empty, dials directly.
+func newUTLSConn(proxyURL string) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	proxyDial := netutil.ProxyDialer(proxyURL)
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		d := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+		var raw net.Conn
+		var err error
+		if proxyDial != nil {
+			raw, err = proxyDial(ctx, network, addr)
+		} else {
+			raw, err = d.DialContext(ctx, network, addr)
 		}
+		if err != nil {
+			return nil, err
+		}
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			raw.Close()
+			return nil, fmt.Errorf("split host: %w", err)
+		}
+		spec, err := utls.UTLSIdToSpec(utls.HelloChrome_120)
+		if err != nil {
+			raw.Close()
+			return nil, fmt.Errorf("chrome spec: %w", err)
+		}
+		// Strip h2 from ALPN + drop the ApplicationSettings (h2-only) extension so
+		// the server picks http/1.1 — Go's stack won't auto-upgrade a custom-dialed
+		// conn to h2, which would otherwise produce malformed responses.
+		var cleaned []utls.TLSExtension
+		for _, ext := range spec.Extensions {
+			switch ext.(type) {
+			case *utls.ALPNExtension:
+				cleaned = append(cleaned, &utls.ALPNExtension{AlpnProtocols: []string{"http/1.1"}})
+			case *utls.ApplicationSettingsExtension:
+				// h2-only; skip
+			default:
+				cleaned = append(cleaned, ext)
+			}
+		}
+		spec.Extensions = cleaned
+		uc := utls.UClient(raw, &utls.Config{ServerName: host}, utls.HelloCustom)
+		if err := uc.ApplyPreset(&spec); err != nil {
+			raw.Close()
+			return nil, fmt.Errorf("apply preset: %w", err)
+		}
+		if err := uc.HandshakeContext(ctx); err != nil {
+			raw.Close()
+			return nil, fmt.Errorf("utls handshake: %w", err)
+		}
+		return uc, nil
 	}
-	spec.Extensions = cleaned
-	uc := utls.UClient(raw, &utls.Config{ServerName: host}, utls.HelloCustom)
-	if err := uc.ApplyPreset(&spec); err != nil {
-		raw.Close()
-		return nil, fmt.Errorf("apply preset: %w", err)
-	}
-	if err := uc.HandshakeContext(ctx); err != nil {
-		raw.Close()
-		return nil, fmt.Errorf("utls handshake: %w", err)
-	}
-	return uc, nil
 }
 
 var (
-	wsHTTPClient = &http.Client{
+	// defaultWSHTTPClient and defaultWSDialer are used when no proxy is configured.
+	defaultWSHTTPClient = &http.Client{
 		Timeout:   30 * time.Second,
-		Transport: &http.Transport{DialTLSContext: newUTLSConn},
+		Transport: &http.Transport{DialTLSContext: newUTLSConn("")},
 	}
-	wsDialer = &websocket.Dialer{
-		NetDialTLSContext: newUTLSConn,
+	defaultWSDialer = &websocket.Dialer{
+		NetDialTLSContext: newUTLSConn(""),
 		HandshakeTimeout:  30 * time.Second,
 	}
 )
 
+// wsClientsForProxy returns proxy-aware HTTP client and WebSocket dialer.
+// If proxyURL is empty, returns the default (non-proxied) clients.
+func wsClientsForProxy(proxyURL string) (*http.Client, *websocket.Dialer) {
+	if proxyURL == "" {
+		return defaultWSHTTPClient, defaultWSDialer
+	}
+	utlsConn := newUTLSConn(proxyURL)
+	return &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: &http.Transport{DialTLSContext: utlsConn},
+	}, &websocket.Dialer{
+		NetDialTLSContext: utlsConn,
+		HandshakeTimeout:  30 * time.Second,
+	}
+}
+
 // fetchViewerToken gets a short-lived viewer-WS token. AUTHED: Bearer = full
 // session_token + X-Client-Token (cookie-only auth 403s).
-func fetchViewerToken(ctx context.Context, ks kickSession) (string, error) {
+func fetchViewerToken(ctx context.Context, ks kickSession, proxyURL string) (string, error) {
 	cookieHeader, _, bearer := cookieHeaderFor(ks)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, websocketsBase+"/viewer/v1/token", nil)
 	if err != nil {
@@ -149,6 +176,7 @@ func fetchViewerToken(ctx context.Context, ks kickSession) (string, error) {
 	req.Header.Set("Origin", "https://kick.com")
 	req.Header.Set("Sec-Fetch-Site", "same-site")
 
+	wsHTTPClient, _ := wsClientsForProxy(proxyURL)
 	resp, err := wsHTTPClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("viewer token request: %w", err)
@@ -172,7 +200,7 @@ func fetchViewerToken(ctx context.Context, ks kickSession) (string, error) {
 	return r.Data.Token, nil
 }
 
-func dialViewerWS(ctx context.Context, ks kickSession, token string) (*websocket.Conn, error) {
+func dialViewerWS(ctx context.Context, ks kickSession, token string, proxyURL string) (*websocket.Conn, error) {
 	hdr := http.Header{}
 	ua := ks.UserAgent
 	if ua == "" {
@@ -180,6 +208,7 @@ func dialViewerWS(ctx context.Context, ks kickSession, token string) (*websocket
 	}
 	hdr.Set("User-Agent", ua)
 	hdr.Set("Origin", "https://kick.com")
+	_, wsDialer := wsClientsForProxy(proxyURL)
 	conn, resp, err := wsDialer.DialContext(ctx, wsConnectURL+"?token="+token, hdr)
 	if err != nil {
 		if resp != nil {
@@ -230,11 +259,11 @@ func (b *Backend) startWSWatch(ctx context.Context, ks kickSession, sess platfor
 	if !live {
 		return platform.WatchHandle{}, fmt.Errorf("kick ws watch: %s offline", slug)
 	}
-	token, err := fetchViewerToken(ctx, ks)
+	token, err := fetchViewerToken(ctx, ks, b.proxyURL)
 	if err != nil {
 		return platform.WatchHandle{}, fmt.Errorf("kick ws watch: %w", err)
 	}
-	conn, err := dialViewerWS(ctx, ks, token)
+	conn, err := dialViewerWS(ctx, ks, token, b.proxyURL)
 	if err != nil {
 		return platform.WatchHandle{}, fmt.Errorf("kick ws watch: %w", err)
 	}
@@ -273,12 +302,12 @@ func (b *Backend) runWSLoop(ctx context.Context, w *kickWSWatch, ks kickSession,
 			return
 		case <-time.After(wait):
 		}
-		token, terr := fetchViewerToken(ctx, ks)
+		token, terr := fetchViewerToken(ctx, ks, b.proxyURL)
 		if terr != nil {
 			w.setErr(fmt.Errorf("kick ws watch %s reconnect token: %w", w.channel, terr))
 			return
 		}
-		c, derr := dialViewerWS(ctx, ks, token)
+		c, derr := dialViewerWS(ctx, ks, token, b.proxyURL)
 		if derr != nil {
 			w.setErr(fmt.Errorf("kick ws watch %s reconnect dial: %w", w.channel, derr))
 			return
@@ -350,3 +379,8 @@ func pumpWS(ctx context.Context, conn wsConn, channelID, livestreamID int64, han
 		}
 	}
 }
+
+
+
+
+

@@ -160,7 +160,7 @@ func NewWithTransport(transport *http.Transport) *Backend {
 		auth:                    newAuthFlowWithTransport(transport),
 		disc:                    &discovery{c: c},
 		chans:                   &channels{c: c},
-		watch:                   newWatch(),
+		watch:                   newWatchWithTransport(transport),
 		claim:                   &claimer{c: c},
 		adv:                     &advisory{c: c},
 		allowedLoginsByCampaign: map[string][]string{},
@@ -407,3 +407,4 @@ func (b *Backend) AllowedChannelCount(campaignID string) int {
 	defer b.mu.Unlock()
 	return len(b.allowedLoginsByCampaign[campaignID])
 }
+

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aalejandrofer/grubdrops/internal/netutil"
 	"github.com/aalejandrofer/grubdrops/internal/platform"
 	utls "github.com/refraction-networking/utls"
 	"golang.org/x/net/http2"
@@ -36,11 +37,11 @@ const chromeUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/53
 // httpDoer performs Kick API calls over a Chrome-fingerprinted utls/HTTP2
 // connection. Connections are pooled per host to avoid repeated TLS handshakes.
 type httpDoer struct {
-	timeout time.Duration
-	mu      sync.Mutex
-	conns   map[string]*cachedConn // host -> cached connection
+	timeout  time.Duration
+	proxyURL string // proxy URL for connections
+	mu       sync.Mutex
+	conns    map[string]*cachedConn // host -> cached connection
 }
-
 type cachedConn struct {
 	uconn   *utls.UConn
 	tr      *http2.Transport
@@ -48,10 +49,11 @@ type cachedConn struct {
 	lastUse time.Time
 }
 
-func newHTTPDoer() *httpDoer {
+func newHTTPDoer(proxyURL string) *httpDoer {
 	return &httpDoer{
-		timeout: 20 * time.Second,
-		conns:   map[string]*cachedConn{},
+		timeout:  20 * time.Second,
+		proxyURL: proxyURL,
+		conns:    map[string]*cachedConn{},
 	}
 }
 
@@ -67,8 +69,15 @@ func (d *httpDoer) connFor(ctx context.Context, host string) (*cachedConn, error
 
 	dialCtx, cancel := context.WithTimeout(ctx, d.timeout)
 	defer cancel()
-	var dialer net.Dialer
-	tcp, err := dialer.DialContext(dialCtx, "tcp", host+":443")
+
+	var tcp net.Conn
+	var err error
+	if proxyDial := netutil.ProxyDialer(d.proxyURL); proxyDial != nil {
+		tcp, err = proxyDial(dialCtx, "tcp", host+":443")
+	} else {
+		var dialer net.Dialer
+		tcp, err = dialer.DialContext(dialCtx, "tcp", host+":443")
+	}
 	if err != nil {
 		return nil, fmt.Errorf("dial: %w", err)
 	}
@@ -248,3 +257,5 @@ func cookieHeaderFor(ks kickSession) (cookieHeader, xsrf, bearer string) {
 	}
 	return strings.Join(pairs, "; "), xsrf, bearer
 }
+
+

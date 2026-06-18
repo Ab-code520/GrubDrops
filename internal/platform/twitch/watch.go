@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -29,6 +30,10 @@ type watch struct {
 
 func newWatch() *watch {
 	return &watch{c: newClient()}
+}
+
+func newWatchWithTransport(transport *http.Transport) *watch {
+	return &watch{c: newClientWithTransport(transport)}
 }
 
 type watchInternal struct {
@@ -150,3 +155,4 @@ func (w *watch) heartbeat(ctx context.Context, h platform.WatchHandle) error {
 func (w *watch) stop(_ context.Context, _ platform.WatchHandle) error {
 	return nil
 }
+

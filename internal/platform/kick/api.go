@@ -51,7 +51,7 @@ type api struct {
 	d doer
 }
 
-func newAPI() *api { return &api{d: newHTTPDoer()} }
+func newAPI(proxyURL string) *api { return &api{d: newHTTPDoer(proxyURL)} }
 
 // ---- Public channel discovery (no auth required) -------------------------
 
@@ -551,3 +551,4 @@ func truncate(b []byte, n int) string {
 	}
 	return string(b[:n]) + "…"
 }
+
