@@ -36,7 +36,7 @@ func TestLive_WSAccrual(t *testing.T) {
 	// No sidecar client + EnableBrowserWatch NOT called → browserWatch stays
 	// off → StartWatch uses the pure-WS path. This is exactly the runtime wiring
 	// for kick_watch_mode = "ws".
-	b := New(nil, nil, "x", 0, time.Minute)
+	b := New(nil, nil, "x", 0, time.Minute, "")
 	sess, err := encodeSession(kickSession{
 		Cookies: []cookie{{Name: "session_token", Value: tok, Domain: ".kick.com", Path: "/"}},
 	})
