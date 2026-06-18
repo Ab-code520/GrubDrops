@@ -397,6 +397,30 @@ func (w *Watcher) unsubscribeCurrentChannel() {
 	cs.UnsubscribeChannel(w.cfg.AccountID, channelID)
 }
 
+// stopCurrentWatch tears down the active Kick WS watch (or Chrome sidecar
+// session) and releases the server-side one-watch-per-account slot. Must be
+// called before re-entering PickCampaign on error recovery so the old
+// presence goroutine doesn't leak and the next StartWatch doesn't bounce
+// off a held slot. Safe to call when no watch is active (handle == nil).
+func (w *Watcher) stopCurrentWatch(ctx context.Context) {
+	w.mu.Lock()
+	handle := w.handle
+	var channelID string
+	if w.currentStream != nil {
+		channelID = w.currentStream.ChannelID
+	}
+	w.handle = nil
+	w.currentStream = nil
+	w.mu.Unlock()
+	if handle == nil {
+		return
+	}
+	_ = w.cfg.Backend.StopWatch(ctx, *handle)
+	if cs, ok := w.cfg.Backend.(platform.ChannelSubscriber); ok && channelID != "" {
+		cs.UnsubscribeChannel(w.cfg.AccountID, channelID)
+	}
+}
+
 func (w *Watcher) State() State {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -583,6 +607,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 			slog.Warn("watcher step error; will retry after backoff",
 				"account", w.cfg.AccountID, "state", w.State().String(),
 				"backoff", backoff, "err", err)
+			w.stopCurrentWatch(ctx)
 			w.setState(ctx, StatePickCampaign)
 		}
 
