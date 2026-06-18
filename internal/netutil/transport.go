@@ -142,4 +142,3 @@ func NewTransport(proxyURL string) *http.Transport {
 
 	return transport
 }
-

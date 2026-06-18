@@ -551,4 +551,3 @@ func truncate(b []byte, n int) string {
 	}
 	return string(b[:n]) + "…"
 }
-

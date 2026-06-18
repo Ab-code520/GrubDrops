@@ -122,4 +122,3 @@ func Probe(ctx context.Context, sess platform.Session, categorySlug string) {
 		fmt.Printf("- %-16s live=%-5v category=%q viewers=%d livestreamID=%s\n", slug, live, category, viewers, lsID)
 	}
 }
-

@@ -143,12 +143,12 @@ func wsClientsForProxy(proxyURL string) (*http.Client, *websocket.Dialer) {
 	}
 	utlsConn := newUTLSConn(proxyURL)
 	return &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: &http.Transport{DialTLSContext: utlsConn},
-	}, &websocket.Dialer{
-		NetDialTLSContext: utlsConn,
-		HandshakeTimeout:  30 * time.Second,
-	}
+			Timeout:   30 * time.Second,
+			Transport: &http.Transport{DialTLSContext: utlsConn},
+		}, &websocket.Dialer{
+			NetDialTLSContext: utlsConn,
+			HandshakeTimeout:  30 * time.Second,
+		}
 }
 
 // fetchViewerToken gets a short-lived viewer-WS token. AUTHED: Bearer = full
@@ -379,8 +379,3 @@ func pumpWS(ctx context.Context, conn wsConn, channelID, livestreamID int64, han
 		}
 	}
 }
-
-
-
-
-

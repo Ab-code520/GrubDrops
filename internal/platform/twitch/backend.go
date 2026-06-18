@@ -104,7 +104,7 @@ type Backend struct {
 	pubsubHandlers PubSubHandlers
 	pubsubDisabled bool   // tests disable via newForTest
 	boundAccount   string // first account to bind hooks; guards single-account use
-	proxyURL             string // proxy URL for WebSocket connections
+	proxyURL       string // proxy URL for WebSocket connections
 }
 
 var _ platform.Backend = (*Backend)(nil)
@@ -133,6 +133,7 @@ func (b *Backend) Close() {
 func (b *Backend) SetProxyURL(url string) {
 	b.proxyURL = url
 }
+
 // PubSubAware so the watcher's real-time hooks actually receive events
 // (both signatures drifted once and broke this silently).
 var _ platform.ChannelSubscriber = (*Backend)(nil)
@@ -407,4 +408,3 @@ func (b *Backend) AllowedChannelCount(campaignID string) int {
 	defer b.mu.Unlock()
 	return len(b.allowedLoginsByCampaign[campaignID])
 }
-

@@ -155,4 +155,3 @@ func (w *watch) heartbeat(ctx context.Context, h platform.WatchHandle) error {
 func (w *watch) stop(_ context.Context, _ platform.WatchHandle) error {
 	return nil
 }
-

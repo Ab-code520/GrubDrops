@@ -243,5 +243,3 @@ func (b *Backend) ProbeWS(ctx context.Context, sess platform.Session, channel st
 	}
 	return nil
 }
-
-

@@ -776,4 +776,3 @@ func (b *Backend) FetchAvatar(ctx context.Context, s platform.Session) (string, 
 }
 
 var _ platform.AvatarFetcher = (*Backend)(nil)
-

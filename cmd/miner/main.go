@@ -905,7 +905,3 @@ func settingOr[T any](logger *slog.Logger, v T, err error, fallback T, key strin
 	}
 	return v
 }
-
-
-
-

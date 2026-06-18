@@ -257,5 +257,3 @@ func cookieHeaderFor(ks kickSession) (cookieHeader, xsrf, bearer string) {
 	}
 	return strings.Join(pairs, "; "), xsrf, bearer
 }
-
-

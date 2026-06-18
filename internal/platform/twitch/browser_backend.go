@@ -48,9 +48,8 @@ type BrowserBackend struct {
 	pubsubs        map[string]*PubSubClient // account_id → client
 	pubsubHandlers PubSubHandlers
 	pubsubHooks    map[string]platform.PubSubHooks // account_id → per-account hooks
-	proxyURL        string // proxy URL for PubSub WebSocket connections
+	proxyURL       string                          // proxy URL for PubSub WebSocket connections
 }
-
 
 // SetProxyURL stores the proxy URL for PubSub WebSocket connections.
 func (b *BrowserBackend) SetProxyURL(url string) {
@@ -501,4 +500,3 @@ func (b *BrowserBackend) AllowedChannelCount(campaignID string) int {
 	defer b.mu.Unlock()
 	return len(b.allowedLoginsByCampaign[campaignID])
 }
-
