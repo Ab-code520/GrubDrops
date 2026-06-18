@@ -182,7 +182,7 @@ func (p *PubSubClient) RemoveTopic(topic string) {
 }
 
 func (p *PubSubClient) dialAndPump(ctx context.Context) error {
-	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
+	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second, Proxy: http.ProxyFromEnvironment}
 	conn, _, err := dialer.DialContext(ctx, PubSubEndpoint, http.Header{})
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
